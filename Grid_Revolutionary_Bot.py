@@ -62,7 +62,7 @@ plt.rcParams['font.size'] = 10
 class GridRevolutionaryBot:
     def __init__(self):
         self.config = {
-            'symbol': 'BTCUSD',
+            'symbol': 'BTCUSD',  # 기본값, 나중에 사용자 입력으로 변경
             'magic_number': 777777,
             'base_lot_size': 0.01,
             'max_spread': 10.0,
@@ -233,7 +233,179 @@ class GridRevolutionaryBot:
         print(f"\n💡 예상 동시 주문 수: 최대 {len(self.config['unlimited_grid_levels']) * 2}개 (매수 + 매도)")
         print("🎯 더 촘촘한 그리드로 더 많은 수익 기회 포착!")
     
-    def connect_mt5(self):
+    def select_trading_symbol(self):
+        """🎯 거래 심볼 선택"""
+        print("\n" + "="*70)
+        print("🎯 거래 심볼 선택")
+        print("="*70)
+        
+        # 인기 심볼 목록
+        popular_symbols = {
+            '1': {'symbol': 'BTCUSD', 'name': 'Bitcoin', 'description': '비트코인 - 가장 인기있는 암호화폐'},
+            '2': {'symbol': 'ETHUSD', 'name': 'Ethereum', 'description': '이더리움 - 두 번째로 큰 암호화폐'},
+            '3': {'symbol': 'XRPUSD', 'name': 'Ripple', 'description': '리플 - 빠른 국제송금용 암호화폐'},
+            '4': {'symbol': 'ADAUSD', 'name': 'Cardano', 'description': '카르다노 - 지속가능한 블록체인'},
+            '5': {'symbol': 'SOLUSD', 'name': 'Solana', 'description': '솔라나 - 고성능 블록체인'},
+            '6': {'symbol': 'DOTUSD', 'name': 'Polkadot', 'description': '폴카닷 - 상호운용성 블록체인'},
+            '7': {'symbol': 'AVAXUSD', 'name': 'Avalanche', 'description': '아발란체 - 빠른 스마트 컨트랙트'},
+            '8': {'symbol': 'MATICUSD', 'name': 'Polygon', 'description': '폴리곤 - 이더리움 레이어2'},
+            '9': {'symbol': 'LINKUSD', 'name': 'Chainlink', 'description': '체인링크 - 오라클 네트워크'},
+            '10': {'symbol': 'UNIUSD', 'name': 'Uniswap', 'description': '유니스왑 - 탈중앙화 거래소'},
+        }
+        
+        forex_symbols = {
+            '11': {'symbol': 'EURUSD', 'name': 'EUR/USD', 'description': '유로/달러 - 가장 거래량이 많은 통화쌍'},
+            '12': {'symbol': 'GBPUSD', 'name': 'GBP/USD', 'description': '파운드/달러 - 케이블'},
+            '13': {'symbol': 'USDJPY', 'name': 'USD/JPY', 'description': '달러/엔 - 아시아 주요 통화쌍'},
+            '14': {'symbol': 'AUDUSD', 'name': 'AUD/USD', 'description': '호주달러/달러'},
+            '15': {'symbol': 'USDCAD', 'name': 'USD/CAD', 'description': '달러/캐나다달러'},
+            '16': {'symbol': 'USDCHF', 'name': 'USD/CHF', 'description': '달러/스위스프랑'},
+            '17': {'symbol': 'NZDUSD', 'name': 'NZD/USD', 'description': '뉴질랜드달러/달러'},
+        }
+        
+        stock_symbols = {
+            '18': {'symbol': 'AAPL', 'name': 'Apple Inc.', 'description': '애플 - 기술주 대표'},
+            '19': {'symbol': 'TSLA', 'name': 'Tesla Inc.', 'description': '테슬라 - 전기차 선도기업'},
+            '20': {'symbol': 'GOOGL', 'name': 'Alphabet Inc.', 'description': '구글 - 검색엔진 및 클라우드'},
+            '21': {'symbol': 'MSFT', 'name': 'Microsoft Corp.', 'description': '마이크로소프트 - 소프트웨어 거대기업'},
+            '22': {'symbol': 'AMZN', 'name': 'Amazon.com Inc.', 'description': '아마존 - 전자상거래 및 클라우드'},
+            '23': {'symbol': 'NVDA', 'name': 'NVIDIA Corp.', 'description': '엔비디아 - AI 및 그래픽카드'},
+            '24': {'symbol': 'META', 'name': 'Meta Platforms', 'description': '메타 - 소셜미디어 플랫폼'},
+        }
+        
+        commodity_symbols = {
+            '25': {'symbol': 'XAUUSD', 'name': 'Gold', 'description': '금 - 안전자산 대표'},
+            '26': {'symbol': 'XAGUSD', 'name': 'Silver', 'description': '은 - 귀금속'},
+            '27': {'symbol': 'USOIL', 'name': 'Crude Oil', 'description': '원유 - WTI'},
+            '28': {'symbol': 'UKOIL', 'name': 'Brent Oil', 'description': '원유 - 브렌트'},
+        }
+        
+        print("🚀 암호화폐 (Cryptocurrency):")
+        for key, info in popular_symbols.items():
+            print(f"  {key:2s}. {info['symbol']:10s} - {info['name']:15s} ({info['description']})")
+        
+        print("\n💱 외환 (Forex):")
+        for key, info in forex_symbols.items():
+            print(f"  {key:2s}. {info['symbol']:10s} - {info['name']:15s} ({info['description']})")
+        
+        print("\n📈 주식 (Stocks):")
+        for key, info in stock_symbols.items():
+            print(f"  {key:2s}. {info['symbol']:10s} - {info['name']:15s} ({info['description']})")
+        
+        print("\n🥇 원자재 (Commodities):")
+        for key, info in commodity_symbols.items():
+            print(f"  {key:2s}. {info['symbol']:10s} - {info['name']:15s} ({info['description']})")
+        
+        print("\n  99. 직접 입력 (Custom Symbol)")
+        print("   0. 기본값 사용 (BTCUSD)")
+        
+        # 모든 심볼을 하나의 딕셔너리로 합치기
+        all_symbols = {**popular_symbols, **forex_symbols, **stock_symbols, **commodity_symbols}
+        
+        while True:
+            choice = input(f"\n거래할 심볼을 선택하세요 (0-28, 99): ").strip()
+            
+            if choice == '0':
+                selected_symbol = 'BTCUSD'
+                selected_name = 'Bitcoin'
+                break
+            elif choice == '99':
+                custom_symbol = input("심볼을 직접 입력하세요 (예: ETHUSD, EURUSD): ").strip().upper()
+                if custom_symbol:
+                    selected_symbol = custom_symbol
+                    selected_name = custom_symbol
+                    break
+                else:
+                    print("❌ 올바른 심볼을 입력해주세요.")
+                    continue
+            elif choice in all_symbols:
+                selected_symbol = all_symbols[choice]['symbol']
+                selected_name = all_symbols[choice]['name']
+                break
+            else:
+                print("❌ 올바른 번호를 선택해주세요.")
+                continue
+        
+        # 심볼 유효성 검사
+        print(f"\n🔍 선택된 심볼: {selected_symbol} ({selected_name})")
+        print("심볼 유효성 검사 중...")
+        
+        symbol_info = mt5.symbol_info(selected_symbol)
+        if symbol_info is None:
+            print(f"❌ 심볼 '{selected_symbol}'을 찾을 수 없습니다.")
+            print("💡 다음을 확인해주세요:")
+            print("  1. 심볼명이 정확한지 확인")
+            print("  2. 브로커에서 해당 심볼을 지원하는지 확인")
+            print("  3. 심볼이 활성화되어 있는지 확인")
+            
+            retry = input("\n다시 선택하시겠습니까? (y/n): ").strip().lower()
+            if retry == 'y':
+                return self.select_trading_symbol()
+            else:
+                print("기본값 BTCUSD를 사용합니다.")
+                return 'BTCUSD', 'Bitcoin'
+        
+        # 심볼 정보 표시
+        print(f"✅ 심볼 확인 완료!")
+        print(f"  📊 심볼: {symbol_info.name}")
+        print(f"  💰 현재가: {symbol_info.bid:.5f}")
+        print(f"  📈 스프레드: {symbol_info.ask - symbol_info.bid:.5f}")
+        print(f"  📊 최소거래량: {symbol_info.volume_min}")
+        print(f"  📊 최대거래량: {symbol_info.volume_max}")
+        print(f"  📊 거래량단위: {symbol_info.volume_step}")
+        
+        # 심볼별 특별 설정
+        self.configure_symbol_specific_settings(selected_symbol)
+        
+        return selected_symbol, selected_name
+    
+    def configure_symbol_specific_settings(self, symbol):
+        """🎯 심볼별 특별 설정"""
+        symbol_upper = symbol.upper()
+        
+        # 암호화폐 설정
+        if any(crypto in symbol_upper for crypto in ['BTC', 'ETH', 'XRP', 'ADA', 'SOL', 'DOT', 'AVAX', 'MATIC', 'LINK', 'UNI']):
+            print(f"\n🚀 암호화폐 최적화 설정 적용: {symbol}")
+            self.config['base_lot_size'] = 0.01
+            self.config['max_spread'] = 50.0  # 암호화폐는 스프레드가 클 수 있음
+            self.config['scalp_profit_pips'] = 10  # 더 큰 수익 목표
+            self.config['scalp_max_loss_pips'] = 20
+            
+        # 외환 설정
+        elif any(forex in symbol_upper for forex in ['EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD']):
+            print(f"\n💱 외환 최적화 설정 적용: {symbol}")
+            self.config['base_lot_size'] = 0.01
+            self.config['max_spread'] = 3.0  # 외환은 스프레드가 작음
+            self.config['scalp_profit_pips'] = 3
+            self.config['scalp_max_loss_pips'] = 5
+            
+        # 주식 설정
+        elif any(stock in symbol_upper for stock in ['AAPL', 'TSLA', 'GOOGL', 'MSFT', 'AMZN', 'NVDA', 'META']):
+            print(f"\n📈 주식 최적화 설정 적용: {symbol}")
+            self.config['base_lot_size'] = 1  # 주식은 보통 1주 단위
+            self.config['max_spread'] = 1.0
+            self.config['scalp_profit_pips'] = 5
+            self.config['scalp_max_loss_pips'] = 10
+            
+        # 원자재 설정
+        elif any(commodity in symbol_upper for commodity in ['XAU', 'XAG', 'OIL']):
+            print(f"\n🥇 원자재 최적화 설정 적용: {symbol}")
+            self.config['base_lot_size'] = 0.01
+            self.config['max_spread'] = 5.0
+            self.config['scalp_profit_pips'] = 8
+            self.config['scalp_max_loss_pips'] = 15
+            
+        else:
+            print(f"\n⚙️ 기본 설정 적용: {symbol}")
+            self.config['base_lot_size'] = 0.01
+            self.config['max_spread'] = 10.0
+            self.config['scalp_profit_pips'] = 5
+            self.config['scalp_max_loss_pips'] = 10
+        
+        print(f"  📊 기본 거래량: {self.config['base_lot_size']}")
+        print(f"  📊 최대 스프레드: {self.config['max_spread']}")
+        print(f"  📊 스캘핑 수익: {self.config['scalp_profit_pips']} pips")
+        print(f"  📊 스캘핑 손절: {self.config['scalp_max_loss_pips']} pips")
         """MT5 연결"""
         print("\n🔌 MT5 연결 중...")
         
@@ -408,7 +580,7 @@ class GridRevolutionaryBot:
                 # 그래프 설정
                 plt.style.use('dark_background')
                 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
-                fig.suptitle('🚀 Revolutionary Unlimited Grid Trading System 🚀', fontsize=16, color='gold')
+                fig.suptitle(f'🚀 Revolutionary Unlimited Grid Trading System - {self.config["symbol"]} 🚀', fontsize=16, color='gold')
                 
                 # 데이터 저장용
                 times = []
@@ -441,7 +613,7 @@ class GridRevolutionaryBot:
                         
                         # 1. 가격 차트 + 그리드 레벨
                         ax1.clear()
-                        ax1.plot(times, prices, 'cyan', linewidth=2, label='BTC Price')
+                        ax1.plot(times, prices, 'cyan', linewidth=2, label=f'{self.config["symbol"]} Price')
                         
                         # 기준선 표시
                         if hasattr(self, 'current_baseline') and self.current_baseline > 0:
@@ -576,7 +748,7 @@ class GridRevolutionaryBot:
                 manager = plt.get_current_fig_manager()
                 if hasattr(manager, 'window'):
                     if hasattr(manager.window, 'wm_title'):
-                        manager.window.wm_title('🚀 Grid Trading System - Real-time Visualization')
+                        manager.window.wm_title(f'🚀 {self.config["symbol"]} Grid Trading System - Real-time Visualization')
                 
                 plt.show()
                 
@@ -602,7 +774,7 @@ class GridRevolutionaryBot:
         
         def run_pygame_viz():
             try:
-                self.pygame_viz = PygameGridVisualizer()
+                self.pygame_viz = PygameGridVisualizer(symbol=self.config['symbol'])
                 self.pygame_viz.run()
             except Exception as e:
                 print(f"Pygame 시각화 오류: {e}")
@@ -1225,53 +1397,111 @@ class GridRevolutionaryBot:
     def close_profit_positions_only(self):
         """💰 수익 포지션만 청산"""
         print("\n💰 수익 포지션만 청산 중...")
-        positions = mt5.positions_get()
+        positions = mt5.positions_get(symbol=self.config['symbol'])  # 선택된 심볼만
         current_price = self.get_current_price()
         total_closed = 0
         total_profit = 0
         
         if positions and current_price:
             for position in positions:
-                # 수익 여부 확인
+                # 현재 미실현 수익 계산
                 if position.type == mt5.ORDER_TYPE_BUY:
-                    profit = (current_price['bid'] - position.price_open) * position.volume
+                    unrealized_profit = (current_price['bid'] - position.price_open) * position.volume
+                    close_price = current_price['bid']
                 else:
-                    profit = (position.price_open - current_price['ask']) * position.volume
+                    unrealized_profit = (position.price_open - current_price['ask']) * position.volume
+                    close_price = current_price['ask']
                 
-                if profit > 0:  # 수익 포지션만
-                    actual_profit = self.close_position_immediately(position)
-                    if actual_profit is not None:
+                if unrealized_profit > 0:  # 수익 포지션만
+                    print(f"  🎯 수익포지션 발견: #{position.ticket} | 미실현수익: ${unrealized_profit:+.2f}")
+                    
+                    # 포지션 청산
+                    close_request = {
+                        "action": mt5.TRADE_ACTION_DEAL,
+                        "symbol": position.symbol,
+                        "volume": position.volume,
+                        "type": mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                        "position": position.ticket,
+                        "deviation": 100,
+                        "magic": self.config['magic_number'],
+                        "comment": "PROFIT_CLOSE_ONLY",
+                    }
+                    
+                    result = mt5.order_send(close_request)
+                    if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                        # 실제 청산 수익 계산
+                        if position.type == mt5.ORDER_TYPE_BUY:
+                            actual_profit = (result.price - position.price_open) * position.volume
+                        else:
+                            actual_profit = (position.price_open - result.price) * position.volume
+                        
                         total_closed += 1
                         total_profit += actual_profit
-                        print(f"  ✅ 수익포지션 #{position.ticket} 청산: ${actual_profit:+.2f}")
+                        print(f"  ✅ 수익포지션 #{position.ticket} 청산완료: ${actual_profit:+.2f} (청산가: ${result.price:.2f})")
+                    else:
+                        error_code = result.retcode if result else "Unknown"
+                        print(f"  ❌ 포지션 #{position.ticket} 청산실패: {error_code}")
         
-        print(f"✅ 수익 포지션 청산 완료: {total_closed}개, 총 수익: ${total_profit:+.2f}")
+        if total_closed > 0:
+            print(f"✅ 수익 포지션 청산 완료: {total_closed}개, 총 수익: ${total_profit:+.2f}")
+        else:
+            print("💡 청산할 수익 포지션이 없습니다.")
+            
         return total_closed, 0, total_profit
     
     def close_loss_positions_only(self):
         """📉 손실 포지션만 청산"""
         print("\n📉 손실 포지션만 청산 중...")
-        positions = mt5.positions_get()
+        positions = mt5.positions_get(symbol=self.config['symbol'])  # 선택된 심볼만
         current_price = self.get_current_price()
         total_closed = 0
         total_loss = 0
         
         if positions and current_price:
             for position in positions:
-                # 손실 여부 확인
+                # 현재 미실현 손실 계산
                 if position.type == mt5.ORDER_TYPE_BUY:
-                    profit = (current_price['bid'] - position.price_open) * position.volume
+                    unrealized_profit = (current_price['bid'] - position.price_open) * position.volume
+                    close_price = current_price['bid']
                 else:
-                    profit = (position.price_open - current_price['ask']) * position.volume
+                    unrealized_profit = (position.price_open - current_price['ask']) * position.volume
+                    close_price = current_price['ask']
                 
-                if profit < 0:  # 손실 포지션만
-                    actual_profit = self.close_position_immediately(position)
-                    if actual_profit is not None:
+                if unrealized_profit < 0:  # 손실 포지션만
+                    print(f"  🎯 손실포지션 발견: #{position.ticket} | 미실현손실: ${unrealized_profit:+.2f}")
+                    
+                    # 포지션 청산
+                    close_request = {
+                        "action": mt5.TRADE_ACTION_DEAL,
+                        "symbol": position.symbol,
+                        "volume": position.volume,
+                        "type": mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                        "position": position.ticket,
+                        "deviation": 100,
+                        "magic": self.config['magic_number'],
+                        "comment": "LOSS_CLOSE_ONLY",
+                    }
+                    
+                    result = mt5.order_send(close_request)
+                    if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                        # 실제 청산 손실 계산
+                        if position.type == mt5.ORDER_TYPE_BUY:
+                            actual_loss = (result.price - position.price_open) * position.volume
+                        else:
+                            actual_loss = (position.price_open - result.price) * position.volume
+                        
                         total_closed += 1
-                        total_loss += actual_profit
-                        print(f"  ✅ 손실포지션 #{position.ticket} 청산: ${actual_profit:+.2f}")
+                        total_loss += actual_loss
+                        print(f"  ✅ 손실포지션 #{position.ticket} 청산완료: ${actual_loss:+.2f} (청산가: ${result.price:.2f})")
+                    else:
+                        error_code = result.retcode if result else "Unknown"
+                        print(f"  ❌ 포지션 #{position.ticket} 청산실패: {error_code}")
         
-        print(f"✅ 손실 포지션 청산 완료: {total_closed}개, 총 손실: ${total_loss:+.2f}")
+        if total_closed > 0:
+            print(f"✅ 손실 포지션 청산 완료: {total_closed}개, 총 손실: ${total_loss:+.2f}")
+        else:
+            print("💡 청산할 손실 포지션이 없습니다.")
+            
         return total_closed, 0, total_loss
     
     def check_user_input(self):
@@ -1294,6 +1524,11 @@ class GridRevolutionaryBot:
                         print("\n🚨 긴급 전체 청산!")
                         self.emergency_close_all_system()
                         return True
+                    elif key == 'g':  # 새로운 단축키 - 수익 포지션만 청산하고 계속
+                        print("\n💰 수익 포지션만 청산 (계속 실행)!")
+                        self.close_profit_positions_only()
+                        print("💡 수익 포지션 청산 완료! 시스템 계속 실행 중...")
+                        return False  # 시스템 종료하지 않고 계속
                     elif key == 's':
                         self.display_current_status()
                     elif key == 'h':
@@ -1325,6 +1560,11 @@ class GridRevolutionaryBot:
                         print("\n🚨 긴급 전체 청산!")
                         self.emergency_close_all_system()
                         return True
+                    elif key == 'g':  # 새로운 단축키 - 수익 포지션만 청산하고 계속
+                        print("\n💰 수익 포지션만 청산 (계속 실행)!")
+                        self.close_profit_positions_only()
+                        print("💡 수익 포지션 청산 완료! 시스템 계속 실행 중...")
+                        return False  # 시스템 종료하지 않고 계속
                     elif key == 's':
                         self.display_current_status()
                     elif key == 'h':
@@ -1389,6 +1629,7 @@ class GridRevolutionaryBot:
         print("="*60)
         print("Q: 청산 메뉴 열기")
         print("E: 긴급 전체 청산")
+        print("G: 💰 수익 포지션만 청산 (계속 실행)")  # 새로운 키
         print("S: 현재 상태 표시")
         print("H: 도움말 표시")
         print("F: 🔄 손실 포지션 즉시 뒤집기")  # 새로운 키
@@ -2860,7 +3101,7 @@ class GridRevolutionaryBot:
         print("\n🗑️ 기존 포지션 및 주문 완전 정리 시작...")
         
         # 1. 모든 대기 주문 취소
-        pending_orders = mt5.orders_get()
+        pending_orders = mt5.orders_get(symbol=self.config['symbol'])
         if pending_orders:
             print(f"� 대기 주문 {len(pending_orders)}개 취소 중...")
             for order in pending_orders:
@@ -2875,7 +3116,7 @@ class GridRevolutionaryBot:
                     print(f"  ❌ 주문 #{order.ticket} 취소 실패: {result.retcode if result else 'Unknown'}")
         
         # 2. 모든 활성 포지션 강제 청산
-        active_positions = mt5.positions_get()
+        active_positions = mt5.positions_get(symbol=self.config['symbol'])
         if active_positions:
             print(f"📋 활성 포지션 {len(active_positions)}개 강제 청산 중...")
             for position in active_positions:
@@ -2911,8 +3152,14 @@ class GridRevolutionaryBot:
         print("  🚀 혁명적 완전자동 다층 양방향 그리드 시스템 시작!")
         print("="*70)
         
+        # 1. 심볼 선택
+        selected_symbol, selected_name = self.select_trading_symbol()
+        self.config['symbol'] = selected_symbol
+        
+        print(f"\n✅ 선택된 거래 심볼: {selected_symbol} ({selected_name})")
+        
         # 시작 전 모든 기존 포지션/주문 정리
-        cleanup_choice = input("\n🗑️ 기존 모든 포지션/주문을 정리하시겠습니까? (y/n): ").strip().lower()
+        cleanup_choice = input(f"\n🗑️ {selected_symbol}의 기존 모든 포지션/주문을 정리하시겠습니까? (y/n): ").strip().lower()
         if cleanup_choice == 'y':
             self.cleanup_all_positions_and_orders()
         
@@ -3017,7 +3264,7 @@ class GridRevolutionaryBot:
                         winning_trades = sum(1 for trade in self.grid_positions['completed_trades'] if trade['profit'] > 0)
                         
                         print(f"[{datetime.now().strftime('%H:%M:%S')}] "
-                              f"BTC: ${current_price['mid']:,.2f} | "
+                              f"{self.config['symbol']}: ${current_price['mid']:,.2f} | "
                               f"기준가: ${self.current_baseline:,.2f} | "
                               f"계좌손익: ${profit:+.2f} | "
                               f"거래수익: ${total_profit_from_trades:+.2f} | "
@@ -3114,31 +3361,39 @@ def main():
     print("  🔄 다중 시간대: 여러 주기로 동시 운영")
     print("  💡 더 이상 LIMIT 주문만 기다리지 않습니다!")
     
-    print("\n💡 무제한 수익 시나리오:")
-    print("  📈 BTC $70K → $420K (6배): 무제한3 레벨 대박!")
-    print("  📉 BTC $70K → $12K (1/6): 무제한3 레벨 대박!")
+    print("\n💡 무제한 수익 시나리오 (예: BTC):")
+    print("  📈 $70K → $420K (6배): 무제한3 레벨 대박!")
+    print("  📉 $70K → $12K (1/6): 무제한3 레벨 대박!")
     print("  🎯 어떤 극한 상황에도 수익 보장!")
+    print("  💡 다른 심볼도 동일한 비율로 수익 가능!")
     
     bot = GridRevolutionaryBot()
     
     if not bot.connect_mt5():
         return
     
-    # 심볼 확인
-    symbol_info = mt5.symbol_info('BTCUSD')
+    # 심볼 선택 및 확인
+    print("\n🎯 먼저 거래할 심볼을 선택해주세요.")
+    selected_symbol, selected_name = bot.select_trading_symbol()
+    bot.config['symbol'] = selected_symbol
+    
+    # 선택된 심볼 정보 재확인
+    symbol_info = mt5.symbol_info(selected_symbol)
     if symbol_info is None:
-        print("❌ BTCUSD 심볼 없음")
+        print(f"❌ {selected_symbol} 심볼을 사용할 수 없습니다.")
         mt5.shutdown()
         return
     
-    answer = input("\n혁명적 무제한 양방향 그리드 + 시각화 시스템을 시작하시겠습니까? (y/n): ")
+    print(f"\n✅ 거래 심볼 확정: {selected_symbol} ({selected_name})")
+    
+    answer = input(f"\n� {sel수ected_symbol} 혁명적 무제한 양방향 그리드 + 시각화 시스템을 시작하시겠습니까? (y/n): ")
     if answer.lower() != 'y':
         print("프로그램 종료")
         mt5.shutdown()
         return
     
-    print("\n🔥 무제한 그리드 + 혁명적 동적 시스템 가동!")
-    print("💎 BTC가 어디로 가든 무제한 수익 대기 중...")
+    print(f"\n🔥 {selected_symbol} 무제한 그리드 + 혁명적 동적 시스템 가동!")
+    print(f"💎 {selected_name}이 어디로 가든 무제한 수익 대기 중...")
     print("🎨 실시간 시각화로 모든 상황을 모니터링!")
     print("🚀 시장가/스탑/공격적 진입으로 더 자주 체결!")
     print("⚡ 모멘텀/변동성/사다리/다중시간대 시스템 활성화!")

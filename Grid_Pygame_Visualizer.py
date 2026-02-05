@@ -36,14 +36,15 @@ COLORS = {
 }
 
 class PygameGridVisualizer:
-    def __init__(self, width=1600, height=1000):
+    def __init__(self, width=1600, height=1000, symbol="BTCUSD"):
         """Pygame 시각화 초기화"""
         pygame.init()
         
         self.width = width
         self.height = height
+        self.symbol = symbol
         self.screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("🚀 Grid Trading System - Real-time Visualization")
+        pygame.display.set_caption(f"🚀 {symbol} Grid Trading System - Real-time Visualization")
         
         # 폰트 설정
         self.font_large = pygame.font.Font(None, 36)
@@ -141,7 +142,7 @@ class PygameGridVisualizer:
     def draw_price_chart(self):
         """가격 차트 그리기"""
         rect = self.chart_areas['price_chart']
-        self.draw_chart_border(rect, "📈 BTC Price & Grid Levels", COLORS['CYAN'])
+        self.draw_chart_border(rect, f"📈 {self.symbol} Price & Grid Levels", COLORS['CYAN'])
         
         if len(self.price_history) < 2:
             # 데이터 없음 표시
