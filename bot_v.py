@@ -31,105 +31,43 @@ class AbsoluteProfitBot:
         self.load_stats()
     
     def configure_profit_settings(self):
-        """🚀 수익 설정 선택"""
+        """🚀 수익 설정 입력"""
         print("\n" + "="*70)
-        print("  💰 수익 모드 선택")
+        print("  💰 수익 설정")
         print("="*70)
         
-        print("\n1. 🛡️ 안전 모드 (기본)")
-        print("   - 거래량: 0.01 BTC")
-        print("   - 수익률: 변동폭의 약 0.8%")
-        print("   - 예시: $51 변동 → $0.41 수익")
-        print("   - 위험도: 매우 낮음")
-        
-        print("\n2. ⚡ 공격 모드 (10% 수익)")
-        print("   - 거래량: 0.1 BTC")
-        print("   - 수익률: 변동폭의 약 10%")
-        print("   - 예시: $51 변동 → $5.1 수익")
-        print("   - 위험도: 중간")
-        
-        print("\n3. 🚀 극한 모드 (20% 수익)")
-        print("   - 거래량: 0.5 BTC")
-        print("   - 수익률: 변동폭의 약 20%")
-        print("   - 예시: $51 변동 → $10.2 수익")
-        print("   - 위험도: 높음")
-        
-        print("\n4. 🔥 혁명 모드 (40% 수익)")
-        print("   - 거래량: 1.0 BTC")
-        print("   - 수익률: 변동폭의 약 40%")
-        print("   - 예시: $51 변동 → $20.4 수익")
-        print("   - 위험도: 매우 높음")
-        
-        print("\n5. 🛠️ 커스텀 설정")
-        print("   - 직접 설정")
+        print("\n� 수익 계산 공식:")
+        print("예상 수익 = 변동폭 × 수익률 × 거래량")
+        print("\n예시:")
+        print("- 변동폭 $50, 수익률 10% (0.1), 거래량 0.1 BTC")
+        print("- 예상 수익 = $50 × 0.1 × 0.1 = $0.5")
         
         while True:
-            choice = input("\n수익 모드 선택 (1-5): ").strip()
-            
-            if choice == '1':  # 안전 모드
-                self.config = {
-                    'symbol': 'BTCUSD',
-                    'magic_number': 999999,
-                    'min_profit_per_trade': 0.5,
-                    'max_spread_usd': 10.0,
-                    'check_interval': 1.0,
-                    'deviation': 50,
-                    'profit_ratio': 0.008,  # 0.8%
-                    'lot_size': 0.01,
-                    'mode_name': '안전 모드'
-                }
-                break
+            try:
+                print("\n" + "-"*50)
+                print("예상 수익 = 변동폭 × 수익률 × 거래량")
+                profit_ratio = float(input("수익률 입력 (0.01=1%, 0.1=10%, 0.5=50%): "))
+                lot_size = float(input("거래량 입력 (BTC, 예: 0.01, 0.1, 1.0): "))
+                min_profit = float(input("최소 수익 기준 ($, 예: 0.1, 0.5, 1.0): "))
+                max_spread = float(input("최대 스프레드 ($, 예: 5.0, 10.0, 20.0): "))
                 
-            elif choice == '2':  # 공격 모드 (10%)
-                self.config = {
-                    'symbol': 'BTCUSD',
-                    'magic_number': 999999,
-                    'min_profit_per_trade': 2.0,
-                    'max_spread_usd': 15.0,
-                    'check_interval': 1.0,
-                    'deviation': 50,
-                    'profit_ratio': 0.1,  # 10%
-                    'lot_size': 0.1,
-                    'mode_name': '공격 모드 (10%)'
-                }
-                break
+                # 설정 확인
+                print(f"\n✅ 설정 확인:")
+                print(f"📈 수익률: {profit_ratio*100:.1f}%")
+                print(f"📊 거래량: {lot_size} BTC")
+                print(f"💰 최소 수익: ${min_profit:.2f}")
+                print(f"📉 최대 스프레드: ${max_spread:.2f}")
                 
-            elif choice == '3':  # 극한 모드 (20%)
-                self.config = {
-                    'symbol': 'BTCUSD',
-                    'magic_number': 999999,
-                    'min_profit_per_trade': 5.0,
-                    'max_spread_usd': 20.0,
-                    'check_interval': 1.0,
-                    'deviation': 50,
-                    'profit_ratio': 0.2,  # 20%
-                    'lot_size': 0.5,
-                    'mode_name': '극한 모드 (20%)'
-                }
-                break
+                # 예시 계산
+                example_changes = [10, 20, 50, 100]
+                print(f"\n💡 예상 수익 예시:")
+                for change in example_changes:
+                    expected = change * profit_ratio * lot_size
+                    status = "✅ 거래" if expected >= min_profit else "❌ 거래안함"
+                    print(f"  ${change} 변동 → ${expected:.2f} 수익 {status}")
                 
-            elif choice == '4':  # 혁명 모드 (40%)
-                self.config = {
-                    'symbol': 'BTCUSD',
-                    'magic_number': 999999,
-                    'min_profit_per_trade': 10.0,
-                    'max_spread_usd': 30.0,
-                    'check_interval': 1.0,
-                    'deviation': 50,
-                    'profit_ratio': 0.4,  # 40%
-                    'lot_size': 1.0,
-                    'mode_name': '혁명 모드 (40%)'
-                }
-                break
-                
-            elif choice == '5':  # 커스텀
-                print("\n🛠️ 커스텀 설정:")
-                try:
-                    profit_ratio = float(input("수익률 (0.01=1%, 0.1=10%, 0.2=20%): "))
-                    lot_size = float(input("거래량 (BTC, 예: 0.01, 0.1, 1.0): "))
-                    min_profit = float(input("최소 수익 ($, 예: 1.0, 5.0, 10.0): "))
-                    max_spread = float(input("최대 스프레드 ($, 예: 10.0, 20.0): "))
-                    
+                confirm = input(f"\n이 설정으로 진행하시겠습니까? (y/n): ").strip().lower()
+                if confirm == 'y':
                     self.config = {
                         'symbol': 'BTCUSD',
                         'magic_number': 999999,
@@ -139,19 +77,22 @@ class AbsoluteProfitBot:
                         'deviation': 50,
                         'profit_ratio': profit_ratio,
                         'lot_size': lot_size,
-                        'mode_name': f'커스텀 ({profit_ratio*100:.0f}%)'
+                        'mode_name': f'커스텀 ({profit_ratio*100:.1f}%)'
                     }
                     break
-                except:
-                    print("⚠️ 잘못된 입력. 다시 시도하세요.")
-            else:
-                print("❌ 잘못된 선택입니다. 1-5 중 선택하세요.")
+                else:
+                    print("다시 설정하겠습니다.")
+                    
+            except ValueError:
+                print("⚠️ 잘못된 입력입니다. 숫자만 입력하세요.")
+            except Exception as e:
+                print(f"⚠️ 오류 발생: {e}")
         
-        print(f"\n✅ {self.config['mode_name']} 선택됨!")
-        print(f"📊 거래량: {self.config['lot_size']} BTC")
-        print(f"💰 수익률: {self.config['profit_ratio']*100:.1f}%")
+        print(f"\n🚀 설정 완료!")
+        print(f"📊 수익률: {self.config['profit_ratio']*100:.1f}%")
+        print(f"💰 거래량: {self.config['lot_size']} BTC")
         print(f"🎯 최소 수익: ${self.config['min_profit_per_trade']:.2f}")
-        print(f"📈 예상 수익 ($51 변동시): ${51 * self.config['profit_ratio'] * self.config['lot_size']:.2f}")
+        print(f"📈 최대 스프레드: ${self.config['max_spread_usd']:.2f}")
     
     def connect_mt5(self):
         """MT5 연결"""
@@ -516,11 +457,11 @@ def main():
     print("="*70)
     print(f"모드: {bot.config['mode_name']}")
     print(f"심볼: {bot.config['symbol']}")
-    print(f"거래량: {bot.config['lot_size']} BTC")
     print(f"수익률: {bot.config['profit_ratio']*100:.1f}%")
+    print(f"거래량: {bot.config['lot_size']} BTC")
     print(f"최소 수익: ${bot.config['min_profit_per_trade']:.2f} (거래당)")
     print(f"최대 스프레드: ${bot.config['max_spread_usd']:.2f}")
-    print(f"예상 수익 ($51 변동시): ${51 * bot.config['profit_ratio'] * bot.config['lot_size']:.2f}")
+    print(f"예상 수익 ($50 변동시): ${50 * bot.config['profit_ratio'] * bot.config['lot_size']:.2f}")
     print("="*70)
     
     answer = input("\n절댓값 수익 보장 시스템을 시작하시겠습니까? (y/n): ")
