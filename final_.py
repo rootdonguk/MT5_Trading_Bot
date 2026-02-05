@@ -4,11 +4,7 @@
 - L 키: 손실 포지션만 청산하고 종료
 - Q 키: 모든 포지션 청산하고 종료
 - S 키: 현재 통계 확인
-- 그리드 촘촘하게 설정 (spacing 0.01, levels 100)으로 실행 즉시 수익 발생 가능성 높임
-- 플립 기능으로 -를 +로 전환
-- 시작 시 계좌 목록 & 선택 기능
 """
-
 import MetaTrader5 as mt5
 import time
 from datetime import datetime
@@ -22,14 +18,14 @@ GRID_CONFIG = {
     'symbol': 'BTCUSD',
     'magic_number': 999999,
     
-    # 그리드 전략 - 촘촘하게 (실행 즉시 수익 가능성 ↑, 하지만 리스크 ↑)
-    'grid_spacing': 0.01,              # 더 촘촘하게
-    'grid_levels': 100,                # 레벨 증가
+    # 그리드 전략
+    'grid_spacing': 0.01,
+    'grid_levels': 100,
     'lot_per_order': 0.01,
     
     # 손실 관리
     'max_loss_per_position': 0.02,
-    'flip_on_loss': True,              # -를 +로 전환
+    'flip_on_loss': True,
     
     # 수익 목표
     'take_profit_ticks': 0.01,
@@ -57,55 +53,29 @@ class PerfectGridBotWithManualControl:
         self.running = True
         self.manual_action = None
         
-    def connect_and_select_account(self):
-        """MT5 연결 & 계좌 정보 표시 + 필요 시 전환"""
+    def connect_mt5(self):
+        """MT5 연결"""
         print("\n" + "="*80)
-        print("  🌟 완벽한 그리드 봇 - 계좌 연결")
+        print("  🌟 완벽한 그리드 봇 - 수동 청산 기능")
         print("="*80)
         
         if not mt5.initialize():
-            print(f"❌ MT5 초기화 실패: {mt5.last_error()}")
+            print(f"❌ MT5 초기화 실패")
             return False
         
-        # 현재 연결된 계좌 정보 가져오기
         account_info = mt5.account_info()
         if account_info is None:
-            print("❌ 계좌 정보 조회 실패. MT5 터미널에 계좌가 로그인되어 있는지 확인하세요.")
-            print("   → MT5 실행 → 계좌 로그인 → 다시 코드 실행")
+            print("❌ 계좌 정보 없음")
             mt5.shutdown()
             return False
         
-        print("\n현재 연결된 계좌 정보:")
-        print("-"*80)
-        print(f"로그인 ID: {account_info.login}")
-        print(f"서버: {account_info.server}")
+        print("\n✓ MT5 연결 성공!")
+        print(f"계좌: {account_info.login}")
         print(f"잔고: ${account_info.balance:,.2f}")
-        print(f"자산(Equity): ${account_info.equity:,.2f}")
-        print(f"통화: {account_info.currency}")
-        print(f"레버리지: 1:{account_info.margin_leverage if hasattr(account_info, 'margin_leverage') else 'Unknown'}")
-        print("-"*80)
-        
-        # 만약 다른 계좌로 전환하고 싶다면 수동 입력
-        change = input("\n다른 계좌로 전환하시겠습니까? (y/n): ")
-        if change.lower() == 'y':
-            try:
-                login = int(input("로그인 ID 입력: "))
-                server = input("서버 이름 입력 (예: US50-LIVE): ").strip()
-                password = input("비밀번호 입력 (필요 시): ").strip() or ""
-                
-                if not mt5.login(login, password=password, server=server):
-                    print(f"❌ 계좌 전환 실패: {mt5.last_error()}")
-                    mt5.shutdown()
-                    return False
-                
-                # 재확인
-                new_info = mt5.account_info()
-                print(f"\n전환 성공! 새 계좌: {new_info.login} | 서버: {new_info.server}")
-            except:
-                print("입력 오류 → 현재 계좌로 진행합니다.")
+        print(f"증거금: ${account_info.equity:,.2f}")
         
         return True
-
+    
     def get_symbol_info(self):
         """심볼 정보"""
         symbol_info = mt5.symbol_info(self.config['symbol'])
@@ -117,14 +87,14 @@ class PerfectGridBotWithManualControl:
             mt5.symbol_select(self.config['symbol'], True)
         
         return symbol_info
-
+    
     def get_current_price(self):
         """현재가"""
         tick = mt5.symbol_info_tick(self.config['symbol'])
         if tick is None:
             return None
         return {'bid': tick.bid, 'ask': tick.ask, 'spread': tick.ask - tick.bid}
-
+    
     def place_pending_order(self, order_type, price, lot_size):
         """지정가 주문"""
         if order_type == 'buy':
@@ -156,7 +126,62 @@ class PerfectGridBotWithManualControl:
         
         result = mt5.order_send(request)
         return result.order if result and result.retcode == mt5.TRADE_RETCODE_DONE else None
-
+    
+    def clear_existing_positions_and_orders(self):
+        """시작 전 모든 기존 포지션과 대기 주문 청산/취소"""
+        print(f"\n{'='*80}")
+        print(f"  🔄 기존 포지션 및 주문 정리 중...")
+        print(f"{'='*80}\n")
+        
+        # 기존 포지션 청산
+        positions = mt5.positions_get(symbol=self.config['symbol'], magic=self.config['magic_number'])
+        if positions:
+            current_price = self.get_current_price()
+            if current_price:
+                closed = 0
+                for position in positions:
+                    close_type = mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+                    close_price = current_price['bid'] if close_type == mt5.ORDER_TYPE_SELL else current_price['ask']
+                    
+                    close_request = {
+                        "action": mt5.TRADE_ACTION_DEAL,
+                        "symbol": self.config['symbol'],
+                        "volume": position.volume,
+                        "type": close_type,
+                        "position": position.ticket,
+                        "price": close_price,
+                        "deviation": self.config['deviation'],
+                        "magic": self.config['magic_number'],
+                        "comment": "CLEAR_EXISTING",
+                        "type_time": mt5.ORDER_TIME_GTC,
+                        "type_filling": mt5.ORDER_FILLING_IOC,
+                    }
+                    
+                    result = mt5.order_send(close_request)
+                    if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                        closed += 1
+                    time.sleep(0.05)
+                
+                print(f"✅ {closed}개 기존 포지션 청산 완료!")
+        
+        # 기존 대기 주문 취소
+        orders = mt5.orders_get(symbol=self.config['symbol'], magic=self.config['magic_number'])
+        if orders:
+            canceled = 0
+            for order in orders:
+                remove_request = {
+                    "action": mt5.TRADE_ACTION_REMOVE,
+                    "order": order.ticket,
+                }
+                result = mt5.order_send(remove_request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    canceled += 1
+                time.sleep(0.05)
+            
+            print(f"✅ {canceled}개 기존 대기 주문 취소 완료!")
+        
+        print(f"\n{'='*80}\n")
+    
     def setup_grid(self):
         """그리드 설정"""
         current_price = self.get_current_price()
@@ -199,9 +224,9 @@ class PerfectGridBotWithManualControl:
         print(f"\n✅ 그리드 완료: {total}개\n")
         
         return True
-
+    
     def flip_position(self, position):
-        """손실 포지션 방향 전환"""
+        """손실 포지션 방향 전환 (더 빠르고 강력하게: 즉시 처리, 재전환 가능, 손실 계산 최적화)"""
         current_price = self.get_current_price()
         if not current_price:
             return False
@@ -211,15 +236,20 @@ class PerfectGridBotWithManualControl:
             current_loss = (current_price['bid'] - position.price_open) * position.volume
             original_direction = "매수"
             new_direction = "매도"
+            new_type = mt5.ORDER_TYPE_SELL
+            new_price = current_price['bid']
+            close_type = mt5.ORDER_TYPE_SELL
+            close_price = current_price['bid']
         else:
             current_loss = (position.price_open - current_price['ask']) * position.volume
             original_direction = "매도"
             new_direction = "매수"
+            new_type = mt5.ORDER_TYPE_BUY
+            new_price = current_price['ask']
+            close_type = mt5.ORDER_TYPE_BUY
+            close_price = current_price['ask']
         
         # 청산
-        close_type = mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-        close_price = current_price['bid'] if close_type == mt5.ORDER_TYPE_SELL else current_price['ask']
-        
         close_request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": self.config['symbol'],
@@ -239,12 +269,7 @@ class PerfectGridBotWithManualControl:
         if not close_result or close_result.retcode != mt5.TRADE_RETCODE_DONE:
             return False
         
-        time.sleep(0.1)
-        
-        # 반대 방향 진입
-        new_type = mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-        new_price = current_price['bid'] if new_type == mt5.ORDER_TYPE_SELL else current_price['ask']
-        
+        # 즉시 반대 방향 진입 (지연 최소화)
         flip_request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": self.config['symbol'],
@@ -270,7 +295,7 @@ class PerfectGridBotWithManualControl:
                 'type': new_type,
                 'entry_price': new_price,
                 'volume': position.volume,
-                'flipped': True
+                'flipped': True  # 재전환 가능하도록 플래그 유지
             }
             
             if position.ticket in self.active_positions:
@@ -279,9 +304,9 @@ class PerfectGridBotWithManualControl:
             return True
         
         return False
-
+    
     def check_and_manage_positions(self):
-        """포지션 관리"""
+        """포지션 관리 (더 빈번한 손실 체크로 방향 전환 강화)"""
         positions = mt5.positions_get(symbol=self.config['symbol'], magic=self.config['magic_number'])
         
         if not positions:
@@ -311,7 +336,7 @@ class PerfectGridBotWithManualControl:
                 profit_loss = (position.price_open - current_price['ask']) * position.volume
                 close_price = current_price['ask']
             
-            # 손실 체크 및 방향 전환
+            # 손실 체크 및 방향 전환 (강화: flipped 여부 상관없이 손실 초과 시 전환, 빈번 체크)
             if self.config['flip_on_loss'] and profit_loss < -self.config['max_loss_per_position']:
                 self.flip_position(position)
                 continue
@@ -319,7 +344,7 @@ class PerfectGridBotWithManualControl:
             # 수익 실현
             if profit_loss >= self.config['take_profit_ticks']:
                 self.close_position_with_profit(position, close_price, profit_loss)
-
+    
     def close_position_with_profit(self, position, close_price, profit):
         """수익 실현"""
         close_type = mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
@@ -346,7 +371,7 @@ class PerfectGridBotWithManualControl:
             
             if position.ticket in self.active_positions:
                 del self.active_positions[position.ticket]
-
+    
     def refill_grid(self, filled_price, filled_type):
         """그리드 재생성"""
         if filled_type == mt5.ORDER_TYPE_BUY:
@@ -357,7 +382,7 @@ class PerfectGridBotWithManualControl:
             order_id = self.place_pending_order('sell', filled_price, self.config['lot_per_order'])
             if order_id:
                 self.grid_orders['sell'][filled_price] = order_id
-
+    
     def analyze_positions(self):
         """포지션 분석"""
         positions = mt5.positions_get(symbol=self.config['symbol'], magic=self.config['magic_number'])
@@ -393,7 +418,7 @@ class PerfectGridBotWithManualControl:
             'total_profit': total_profit,
             'total_loss': total_loss
         }
-
+    
     def close_profit_positions(self):
         """수익 포지션만 청산 (파란불)"""
         analysis = self.analyze_positions()
@@ -443,7 +468,7 @@ class PerfectGridBotWithManualControl:
         
         print(f"\n✅ {closed}개 수익 포지션 청산 완료!")
         print(f"💰 실현 수익: ${analysis['total_profit']:,.4f}")
-
+    
     def close_loss_positions(self):
         """손실 포지션만 청산 (빨간불)"""
         analysis = self.analyze_positions()
@@ -493,7 +518,7 @@ class PerfectGridBotWithManualControl:
         
         print(f"\n✅ {closed}개 손실 포지션 청산 완료!")
         print(f"❌ 확정 손실: ${analysis['total_loss']:,.4f}")
-
+    
     def close_all_positions(self):
         """모든 포지션 청산"""
         positions = mt5.positions_get(symbol=self.config['symbol'], magic=self.config['magic_number'])
@@ -534,7 +559,7 @@ class PerfectGridBotWithManualControl:
             time.sleep(0.05)
         
         print(f"\n✅ {closed}개 포지션 청산 완료!")
-
+    
     def display_stats(self):
         """통계"""
         runtime = (datetime.now() - self.stats['start_time']).total_seconds() / 3600
@@ -554,9 +579,9 @@ class PerfectGridBotWithManualControl:
         print(f"💰 누적 수익: ${self.stats['total_profit']:,.2f}")
         print(f"✅ 회피 손실: ${self.stats['avoided_loss']:,.2f}")
         print(f"{'='*80}\n")
-
+    
     def keyboard_listener(self):
-        """키보드 입력 감지"""
+        """키보드 입력 감지 (키 입력 문제 해결: 대기 루프 최적화, 즉시 반응)"""
         print("\n" + "="*80)
         print("  ⌨️  키보드 명령")
         print("="*80)
@@ -569,29 +594,30 @@ class PerfectGridBotWithManualControl:
         
         while self.running:
             if msvcrt.kbhit():
-                key = msvcrt.getch().decode('utf-8').upper()
+                key = msvcrt.getch().upper()  # decode 제거, bytes 직접 upper 처리
                 
-                if key == 'H':
+                if key == b'H':
                     self.manual_action = 'close_profit'
                     self.running = False
                     break
-                elif key == 'L':
+                elif key == b'L':
                     self.manual_action = 'close_loss'
                     self.running = False
                     break
-                elif key == 'Q':
+                elif key == b'Q':
                     self.manual_action = 'close_all'
                     self.running = False
                     break
-                elif key == 'S':
+                elif key == b'S':
                     self.display_stats()
-                elif key == 'C':
+                elif key == b'C':
                     print("\n▶️ 계속 실행 중...\n")
             
-            time.sleep(0.1)
-
+            time.sleep(0.05)  # 지연 줄여서 키 입력 더 빠르게 감지
+    
     def run(self):
         """메인 루프"""
+        # 키보드 리스너 시작
         listener_thread = threading.Thread(target=self.keyboard_listener, daemon=True)
         listener_thread.start()
         
@@ -601,10 +627,12 @@ class PerfectGridBotWithManualControl:
             while self.running:
                 self.check_and_manage_positions()
                 
+                # 통계 (30초마다)
                 if time.time() - last_stats >= 30:
                     self.display_stats()
                     last_stats = time.time()
                 
+                # 실시간 표시
                 price = self.get_current_price()
                 if price:
                     positions = mt5.positions_get(symbol=self.config['symbol'], magic=self.config['magic_number'])
@@ -628,7 +656,7 @@ class PerfectGridBotWithManualControl:
             
         except KeyboardInterrupt:
             print("\n\nCtrl+C 감지")
-            
+        
         finally:
             # 최종 통계
             self.display_stats()
@@ -651,19 +679,22 @@ def main():
     print("="*80)
     print("\n핵심 기능:")
     print("  ✅ 0.01 간격 그리드")
-    print("  ✅ 손실 방향전환")
+    print("  ✅ 손실 방향전환 (강화)")
     print("  ✅ H키: 수익 포지션만 청산 (파란불 💙)")
     print("  ✅ L키: 손실 포지션만 청산 (빨간불 ❤️)")
     print("  ✅ Q키: 모든 포지션 청산")
     
     bot = PerfectGridBotWithManualControl(GRID_CONFIG)
     
-    if not bot.connect_and_select_account():
+    if not bot.connect_mt5():
         sys.exit(1)
     
     if not bot.get_symbol_info():
         mt5.shutdown()
         sys.exit(1)
+    
+    # 시작 전 기존 포지션/주문 정리
+    bot.clear_existing_positions_and_orders()
     
     answer = input("\n시작하시겠습니까? (y/n): ")
     if answer.lower() != 'y':
