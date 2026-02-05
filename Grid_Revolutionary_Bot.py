@@ -406,6 +406,26 @@ class GridRevolutionaryBot:
         print(f"  📊 최대 스프레드: {self.config['max_spread']}")
         print(f"  📊 스캘핑 수익: {self.config['scalp_profit_pips']} pips")
         print(f"  📊 스캘핑 손절: {self.config['scalp_max_loss_pips']} pips")
+    
+    def connect_mt5(self):
+        """MT5 연결"""
+        print("\n🔌 MT5 연결 중...")
+        
+        if not mt5.initialize():
+            print(f"❌ MT5 초기화 실패: {mt5.last_error()}")
+            return False
+        
+        account_info = mt5.account_info()
+        if account_info is None:
+            print("❌ 계좌 정보 조회 실패")
+            return False
+        
+        print("✅ MT5 연결 성공!")
+        print(f"계좌: {account_info.login}")
+        print(f"잔고: ${account_info.balance:,.2f}")
+        print(f"자산: ${account_info.equity:,.2f}")
+        
+        return True
         """MT5 연결"""
         print("\n🔌 MT5 연결 중...")
         
