@@ -66,6 +66,37 @@ class GridRevolutionaryBot:
             'magic_number': 777777,
             'base_lot_size': 0.01,
             'max_spread': 10.0,
+            
+            # 🔥 혁명적 기법 설정
+            'scalping_enabled': True,           # 초단기 스캘핑
+            'martingale_enabled': True,         # 마틴게일 시스템
+            'hedging_enabled': True,            # 헤징 시스템
+            'momentum_trading': True,           # 모멘텀 거래
+            'arbitrage_enabled': True,          # 차익거래
+            'news_trading': True,               # 뉴스 기반 거래
+            'loss_prevention': True,            # 🔥 손실 방지 시스템
+            'direction_reversal': True,         # 🔥 방향 전환 시스템
+            'profit_boost': True,               # 🚀 수익 부스트 시스템
+            
+            # 스캘핑 설정
+            'scalp_profit_pips': 5,             # 5핍 수익시 청산
+            'scalp_max_loss_pips': 10,          # 10핍 손실시 마틴게일
+            'scalp_frequency': 0.5,             # 0.5초마다 체크
+            
+            # 마틴게일 설정
+            'martingale_multiplier': 2.0,       # 손실시 2배 증량
+            'martingale_max_levels': 5,         # 최대 5단계
+            
+            # 헤징 설정
+            'hedge_trigger_loss': 2.0,          # $2 손실시 헤징
+            'hedge_multiplier': 1.5,            # 1.5배 헤징
+            
+            # 🔥 손실 방지 설정
+            'max_allowed_loss': 50.0,           # $50 손실시 즉시 전환
+            'direction_reversal_multiplier': 3.0,  # 3배 거래량으로 전환
+            'emergency_boost_threshold': 100.0,    # $100 손실시 긴급 부스트
+            'ultra_quick_exit_pct': 0.0005,        # 0.05% 움직임으로 청산
+            
             'unlimited_grid_levels': [
                 # 초고속 회전 (매우 작은 수익, 매우 높은 빈도)
                 {'name': '초고속1', 'distance_pct': 0.001, 'lot_multiplier': 0.2},   # ±0.1%
@@ -128,7 +159,10 @@ class GridRevolutionaryBot:
             'buy_orders': {},   # {level: order_info}
             'sell_orders': {},  # {level: order_info}
             'active_positions': {},
-            'completed_trades': []
+            'completed_trades': [],
+            'hedge_positions': {},      # 헤징 포지션
+            'martingale_levels': {},    # 마틴게일 레벨
+            'scalp_positions': {}       # 스캘핑 포지션
         }
         
         self.stats = {
@@ -137,11 +171,17 @@ class GridRevolutionaryBot:
             'winning_trades': 0,
             'grid_profits': defaultdict(float),
             'level_stats': defaultdict(lambda: {'trades': 0, 'profit': 0.0}),
+            'scalp_profits': 0.0,       # 스캘핑 수익
+            'hedge_profits': 0.0,       # 헤징 수익
+            'martingale_profits': 0.0,  # 마틴게일 수익
             'start_time': datetime.now()
         }
         
         self.current_baseline = 0.0
         self.last_grid_update = 0
+        self.last_scalp_time = 0        # 마지막 스캘핑 시간
+        self.price_momentum = 0         # 가격 모멘텀
+        self.last_prices = deque(maxlen=10)  # 최근 10개 가격
         
         # 시각화 데이터
         self.visualization_data = {
@@ -563,8 +603,939 @@ class GridRevolutionaryBot:
         
         return self.pygame_thread
     
+    def revolutionary_scalping_system(self, current_price):
+        """⚡ 혁명적 초단기 스캘핑 시스템"""
+        if not self.config['scalping_enabled']:
+            return
+        
+        current_time = time.time()
+        if current_time - self.last_scalp_time < self.config['scalp_frequency']:
+            return
+        
+        self.last_scalp_time = current_time
+        
+        # 가격 모멘텀 계산
+        self.last_prices.append(current_price['mid'])
+        if len(self.last_prices) >= 3:
+            recent_change = self.last_prices[-1] - self.last_prices[-3]
+            self.price_momentum = recent_change
+            
+            # 강한 모멘텀 감지시 즉시 스캘핑
+            if abs(recent_change) > current_price['mid'] * 0.0005:  # 0.05% 이상 변동
+                self.execute_momentum_scalp(current_price, recent_change)
+    
+    def execute_momentum_scalp(self, current_price, momentum):
+        """🚀 모멘텀 기반 스캘핑 실행"""
+        try:
+            lot_size = self.config['base_lot_size'] * 2  # 2배 거래량
+            
+            if momentum > 0:  # 상승 모멘텀
+                # 매수 진입
+                scalp_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": lot_size,
+                    "type": mt5.ORDER_TYPE_BUY,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": "SCALP_BUY_MOMENTUM",
+                }
+                
+                result = mt5.order_send(scalp_request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    entry_price = result.price
+                    target_price = entry_price + (current_price['mid'] * 0.0007)  # 0.07% 목표
+                    
+                    print(f"⚡ 스캘핑 매수: ${entry_price:.2f} → 목표: ${target_price:.2f}")
+                    
+                    # 즉시 청산 주문 배치
+                    self.place_scalp_exit_order(result.order, 'buy', target_price, lot_size)
+                    
+            else:  # 하락 모멘텀
+                # 매도 진입
+                scalp_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": lot_size,
+                    "type": mt5.ORDER_TYPE_SELL,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": "SCALP_SELL_MOMENTUM",
+                }
+                
+                result = mt5.order_send(scalp_request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    entry_price = result.price
+                    target_price = entry_price - (current_price['mid'] * 0.0007)  # 0.07% 목표
+                    
+                    print(f"⚡ 스캘핑 매도: ${entry_price:.2f} → 목표: ${target_price:.2f}")
+                    
+                    # 즉시 청산 주문 배치
+                    self.place_scalp_exit_order(result.order, 'sell', target_price, lot_size)
+                    
+        except Exception as e:
+            print(f"❌ 스캘핑 오류: {e}")
+    
+    def place_scalp_exit_order(self, position_ticket, position_type, target_price, volume):
+        """⚡ 스캘핑 청산 주문 배치"""
+        try:
+            if position_type == 'buy':
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_SELL_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"SCALP_EXIT_BUY_{position_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            else:
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_BUY_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"SCALP_EXIT_SELL_{position_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            
+            result = mt5.order_send(exit_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"   ✅ 스캘핑 청산주문: #{result.order}")
+                
+                # 스캘핑 포지션 추적
+                self.grid_positions['scalp_positions'][position_ticket] = {
+                    'exit_order': result.order,
+                    'target_price': target_price,
+                    'timestamp': datetime.now()
+                }
+            
+        except Exception as e:
+            print(f"❌ 스캘핑 청산주문 오류: {e}")
+    
+    def revolutionary_martingale_system(self, current_price):
+        """🎯 혁명적 마틴게일 시스템 (손실을 수익으로 전환)"""
+        if not self.config['martingale_enabled']:
+            return
+        
+        positions = mt5.positions_get(symbol=self.config['symbol'])
+        if not positions:
+            return
+        
+        for position in positions:
+            # 손실 포지션 감지
+            if position.type == mt5.ORDER_TYPE_BUY:
+                profit = (current_price['bid'] - position.price_open) * position.volume
+            else:
+                profit = (position.price_open - current_price['ask']) * position.volume
+            
+            # 손실이 임계값을 넘으면 마틴게일 실행
+            if profit < -self.config['scalp_max_loss_pips']:
+                self.execute_martingale(position, current_price, profit)
+    
+    def execute_martingale(self, losing_position, current_price, loss_amount):
+        """🔥 마틴게일 실행 (손실 복구)"""
+        try:
+            # 마틴게일 레벨 확인
+            position_key = f"{losing_position.ticket}"
+            current_level = self.grid_positions['martingale_levels'].get(position_key, 0)
+            
+            if current_level >= self.config['martingale_max_levels']:
+                return  # 최대 레벨 도달
+            
+            # 마틴게일 거래량 계산 (손실 복구 + 추가 수익)
+            recovery_volume = abs(loss_amount) / current_price['mid'] * self.config['martingale_multiplier']
+            recovery_volume = max(self.config['base_lot_size'], recovery_volume)
+            
+            # 반대 방향으로 마틴게일 주문
+            if losing_position.type == mt5.ORDER_TYPE_BUY:
+                # 매수 포지션 손실 → 매도로 복구
+                martingale_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": recovery_volume,
+                    "type": mt5.ORDER_TYPE_SELL,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MARTINGALE_L{current_level+1}_SELL",
+                }
+            else:
+                # 매도 포지션 손실 → 매수로 복구
+                martingale_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": recovery_volume,
+                    "type": mt5.ORDER_TYPE_BUY,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MARTINGALE_L{current_level+1}_BUY",
+                }
+            
+            result = mt5.order_send(martingale_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"🔥 마틴게일 L{current_level+1}: 거래량 {recovery_volume:.3f} | 손실복구: ${abs(loss_amount):.2f}")
+                
+                # 마틴게일 레벨 업데이트
+                self.grid_positions['martingale_levels'][position_key] = current_level + 1
+                
+                # 즉시 수익 청산 주문 배치
+                self.place_martingale_exit_order(result.order, losing_position.type, current_price, recovery_volume)
+                
+        except Exception as e:
+            print(f"❌ 마틴게일 오류: {e}")
+    
+    def place_martingale_exit_order(self, martingale_ticket, original_type, current_price, volume):
+        """🎯 마틴게일 청산 주문 (빠른 수익 실현)"""
+        try:
+            if original_type == mt5.ORDER_TYPE_BUY:
+                # 원래 매수 손실 → 매도 마틴게일 → 매수 청산
+                target_price = current_price['ask'] - (current_price['mid'] * 0.001)  # 0.1% 수익
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_BUY_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MARTINGALE_EXIT_{martingale_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            else:
+                # 원래 매도 손실 → 매수 마틴게일 → 매도 청산
+                target_price = current_price['bid'] + (current_price['mid'] * 0.001)  # 0.1% 수익
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_SELL_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MARTINGALE_EXIT_{martingale_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            
+            result = mt5.order_send(exit_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"   ✅ 마틴게일 청산주문: #{result.order} @ ${target_price:.2f}")
+                
+        except Exception as e:
+            print(f"❌ 마틴게일 청산주문 오류: {e}")
+    
+    def revolutionary_hedging_system(self, current_price):
+        """🛡️ 혁명적 헤징 시스템 (리스크 제로화)"""
+        if not self.config['hedging_enabled']:
+            return
+        
+        positions = mt5.positions_get(symbol=self.config['symbol'])
+        if not positions:
+            return
+        
+        total_buy_volume = 0
+        total_sell_volume = 0
+        total_buy_loss = 0
+        total_sell_loss = 0
+        
+        # 포지션 분석
+        for position in positions:
+            if position.type == mt5.ORDER_TYPE_BUY:
+                total_buy_volume += position.volume
+                profit = (current_price['bid'] - position.price_open) * position.volume
+                if profit < 0:
+                    total_buy_loss += abs(profit)
+            else:
+                total_sell_volume += position.volume
+                profit = (position.price_open - current_price['ask']) * position.volume
+                if profit < 0:
+                    total_sell_loss += abs(profit)
+        
+        # 헤징 필요성 판단
+        if total_buy_loss > self.config['hedge_trigger_loss']:
+            self.execute_hedge('sell', total_buy_volume, total_buy_loss, current_price)
+        
+        if total_sell_loss > self.config['hedge_trigger_loss']:
+            self.execute_hedge('buy', total_sell_volume, total_sell_loss, current_price)
+    
+    def execute_hedge(self, hedge_type, original_volume, loss_amount, current_price):
+        """🛡️ 헤징 실행"""
+        try:
+            # 헤징 거래량 계산
+            hedge_volume = original_volume * self.config['hedge_multiplier']
+            
+            if hedge_type == 'buy':
+                hedge_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": hedge_volume,
+                    "type": mt5.ORDER_TYPE_BUY,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"HEDGE_BUY_{loss_amount:.0f}",
+                }
+            else:
+                hedge_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": hedge_volume,
+                    "type": mt5.ORDER_TYPE_SELL,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"HEDGE_SELL_{loss_amount:.0f}",
+                }
+            
+            result = mt5.order_send(hedge_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"🛡️ 헤징 실행: {hedge_type.upper()} {hedge_volume:.3f} | 손실보호: ${loss_amount:.2f}")
+                
+                # 헤징 포지션 추적
+                self.grid_positions['hedge_positions'][result.order] = {
+                    'type': hedge_type,
+                    'volume': hedge_volume,
+                    'loss_protected': loss_amount,
+                    'timestamp': datetime.now()
+                }
+                
+        except Exception as e:
+            print(f"❌ 헤징 오류: {e}")
+    
+    def instant_profit_system(self, current_price):
+        """💎 즉시 수익 시스템 (손실 포지션을 즉시 수익으로 전환)"""
+        positions = mt5.positions_get(symbol=self.config['symbol'])
+        if not positions:
+            return
+        
+        for position in positions:
+            # 포지션 보유 시간
+            position_age = datetime.now().timestamp() - position.time
+            
+            # 손실 포지션이 5초 이상 지속되면 즉시 수익 전환
+            if position_age > 5:
+                if position.type == mt5.ORDER_TYPE_BUY:
+                    profit = (current_price['bid'] - position.price_open) * position.volume
+                    if profit < -0.5:  # $0.5 이상 손실
+                        self.execute_instant_profit_conversion(position, current_price, 'buy')
+                else:
+                    profit = (position.price_open - current_price['ask']) * position.volume
+                    if profit < -0.5:  # $0.5 이상 손실
+                        self.execute_instant_profit_conversion(position, current_price, 'sell')
+    
+    def execute_instant_profit_conversion(self, losing_position, current_price, position_type):
+        """⚡ 즉시 수익 전환 실행"""
+        try:
+            # 3배 거래량으로 반대 포지션 진입
+            conversion_volume = losing_position.volume * 3
+            
+            if position_type == 'buy':
+                # 매수 손실 → 3배 매도로 즉시 수익 전환
+                conversion_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": conversion_volume,
+                    "type": mt5.ORDER_TYPE_SELL,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"INSTANT_PROFIT_SELL_{losing_position.ticket}",
+                }
+            else:
+                # 매도 손실 → 3배 매수로 즉시 수익 전환
+                conversion_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": conversion_volume,
+                    "type": mt5.ORDER_TYPE_BUY,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"INSTANT_PROFIT_BUY_{losing_position.ticket}",
+                }
+            
+            result = mt5.order_send(conversion_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"💎 즉시수익전환: {position_type.upper()} 손실 → {conversion_volume:.3f} 반대포지션")
+                
+                # 매우 작은 움직임으로도 수익이 나도록 청산 주문 배치
+                self.place_micro_profit_exit(result.order, position_type, current_price, conversion_volume)
+                
+        except Exception as e:
+            print(f"❌ 즉시수익전환 오류: {e}")
+    
+    def place_micro_profit_exit(self, position_ticket, original_type, current_price, volume):
+        """⚡ 마이크로 수익 청산 주문 (0.01% 수익으로도 청산)"""
+        try:
+            if original_type == 'buy':
+                # 매도 포지션 → 0.01% 하락시 청산
+                target_price = current_price['ask'] - (current_price['mid'] * 0.0001)
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_BUY_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MICRO_PROFIT_EXIT_{position_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            else:
+                # 매수 포지션 → 0.01% 상승시 청산
+                target_price = current_price['bid'] + (current_price['mid'] * 0.0001)
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_SELL_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MICRO_PROFIT_EXIT_{position_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            
+            result = mt5.order_send(exit_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"   ⚡ 마이크로수익 청산주문: #{result.order} @ ${target_price:.2f} (0.01% 수익)")
+                
+        except Exception as e:
+            print(f"❌ 마이크로수익 청산주문 오류: {e}")
+    
+    def emergency_close_all_system(self):
+        """🚨 긴급 전체 청산 시스템"""
+        print("\n🚨 긴급 전체 청산 시스템 실행!")
+        print("="*60)
+        
+        total_closed_positions = 0
+        total_cancelled_orders = 0
+        total_profit = 0
+        
+        # 1. 모든 활성 포지션 즉시 청산
+        print("📊 활성 포지션 청산 중...")
+        positions = mt5.positions_get()
+        if positions:
+            for position in positions:
+                profit = self.close_position_immediately(position)
+                if profit is not None:
+                    total_closed_positions += 1
+                    total_profit += profit
+                    print(f"  ✅ 포지션 #{position.ticket} 청산: ${profit:+.2f}")
+                else:
+                    print(f"  ❌ 포지션 #{position.ticket} 청산 실패")
+        
+        # 2. 모든 대기 주문 취소
+        print("\n📋 대기 주문 취소 중...")
+        orders = mt5.orders_get()
+        if orders:
+            for order in orders:
+                if self.cancel_order_immediately(order.ticket):
+                    total_cancelled_orders += 1
+                    print(f"  ✅ 주문 #{order.ticket} 취소")
+                else:
+                    print(f"  ❌ 주문 #{order.ticket} 취소 실패")
+        
+        # 3. 내부 데이터 초기화
+        self.grid_positions['buy_orders'].clear()
+        self.grid_positions['sell_orders'].clear()
+        self.grid_positions['active_positions'].clear()
+        self.grid_positions['hedge_positions'].clear()
+        self.grid_positions['martingale_levels'].clear()
+        self.grid_positions['scalp_positions'].clear()
+        
+        # 4. 최종 결과 표시
+        print(f"\n🎯 전체 청산 완료!")
+        print(f"  📊 청산된 포지션: {total_closed_positions}개")
+        print(f"  📋 취소된 주문: {total_cancelled_orders}개")
+        print(f"  💰 총 실현손익: ${total_profit:+.2f}")
+        
+        # 5. 계좌 현황 확인
+        account_info = mt5.account_info()
+        if account_info:
+            print(f"  💎 현재 잔고: ${account_info.balance:,.2f}")
+            print(f"  📈 현재 자산: ${account_info.equity:,.2f}")
+            print(f"  🔥 순손익: ${account_info.equity - account_info.balance:+.2f}")
+        
+        return total_closed_positions, total_cancelled_orders, total_profit
+    
+    def close_position_immediately(self, position):
+        """⚡ 포지션 즉시 청산"""
+        try:
+            close_request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": position.symbol,
+                "volume": position.volume,
+                "type": mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                "position": position.ticket,
+                "deviation": 100,
+                "magic": self.config['magic_number'],
+                "comment": "EMERGENCY_CLOSE_ALL",
+            }
+            
+            result = mt5.order_send(close_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                # 수익 계산
+                if position.type == mt5.ORDER_TYPE_BUY:
+                    profit = (result.price - position.price_open) * position.volume
+                else:
+                    profit = (position.price_open - result.price) * position.volume
+                
+                return profit
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"❌ 포지션 청산 오류: {e}")
+            return None
+    
+    def cancel_order_immediately(self, order_ticket):
+        """⚡ 주문 즉시 취소"""
+        try:
+            cancel_request = {
+                "action": mt5.TRADE_ACTION_REMOVE,
+                "order": order_ticket,
+            }
+            
+            result = mt5.order_send(cancel_request)
+            return result and result.retcode == mt5.TRADE_RETCODE_DONE
+            
+        except Exception as e:
+            print(f"❌ 주문 취소 오류: {e}")
+            return False
+    
+    def user_close_all_interface(self):
+        """🎮 사용자 전체 청산 인터페이스"""
+        print("\n" + "="*60)
+        print("🚨 전체 청산 옵션")
+        print("="*60)
+        print("1. 모든 포지션 + 주문 즉시 청산")
+        print("2. 포지션만 청산 (주문 유지)")
+        print("3. 주문만 취소 (포지션 유지)")
+        print("4. 수익 포지션만 청산")
+        print("5. 손실 포지션만 청산")
+        print("0. 취소")
+        
+        choice = input("\n선택하세요 (0-5): ").strip()
+        
+        if choice == "1":
+            return self.emergency_close_all_system()
+        elif choice == "2":
+            return self.close_positions_only()
+        elif choice == "3":
+            return self.cancel_orders_only()
+        elif choice == "4":
+            return self.close_profit_positions_only()
+        elif choice == "5":
+            return self.close_loss_positions_only()
+        else:
+            print("취소되었습니다.")
+            return None
+    
+    def close_positions_only(self):
+        """📊 포지션만 청산"""
+        print("\n📊 포지션만 청산 중...")
+        positions = mt5.positions_get()
+        total_closed = 0
+        total_profit = 0
+        
+        if positions:
+            for position in positions:
+                profit = self.close_position_immediately(position)
+                if profit is not None:
+                    total_closed += 1
+                    total_profit += profit
+                    print(f"  ✅ 포지션 #{position.ticket} 청산: ${profit:+.2f}")
+        
+        print(f"✅ 포지션 청산 완료: {total_closed}개, 총 손익: ${total_profit:+.2f}")
+        return total_closed, 0, total_profit
+    
+    def cancel_orders_only(self):
+        """📋 주문만 취소"""
+        print("\n📋 주문만 취소 중...")
+        orders = mt5.orders_get()
+        total_cancelled = 0
+        
+        if orders:
+            for order in orders:
+                if self.cancel_order_immediately(order.ticket):
+                    total_cancelled += 1
+                    print(f"  ✅ 주문 #{order.ticket} 취소")
+        
+        print(f"✅ 주문 취소 완료: {total_cancelled}개")
+        return 0, total_cancelled, 0
+    
+    def close_profit_positions_only(self):
+        """💰 수익 포지션만 청산"""
+        print("\n💰 수익 포지션만 청산 중...")
+        positions = mt5.positions_get()
+        current_price = self.get_current_price()
+        total_closed = 0
+        total_profit = 0
+        
+        if positions and current_price:
+            for position in positions:
+                # 수익 여부 확인
+                if position.type == mt5.ORDER_TYPE_BUY:
+                    profit = (current_price['bid'] - position.price_open) * position.volume
+                else:
+                    profit = (position.price_open - current_price['ask']) * position.volume
+                
+                if profit > 0:  # 수익 포지션만
+                    actual_profit = self.close_position_immediately(position)
+                    if actual_profit is not None:
+                        total_closed += 1
+                        total_profit += actual_profit
+                        print(f"  ✅ 수익포지션 #{position.ticket} 청산: ${actual_profit:+.2f}")
+        
+        print(f"✅ 수익 포지션 청산 완료: {total_closed}개, 총 수익: ${total_profit:+.2f}")
+        return total_closed, 0, total_profit
+    
+    def close_loss_positions_only(self):
+        """📉 손실 포지션만 청산"""
+        print("\n📉 손실 포지션만 청산 중...")
+        positions = mt5.positions_get()
+        current_price = self.get_current_price()
+        total_closed = 0
+        total_loss = 0
+        
+        if positions and current_price:
+            for position in positions:
+                # 손실 여부 확인
+                if position.type == mt5.ORDER_TYPE_BUY:
+                    profit = (current_price['bid'] - position.price_open) * position.volume
+                else:
+                    profit = (position.price_open - current_price['ask']) * position.volume
+                
+                if profit < 0:  # 손실 포지션만
+                    actual_profit = self.close_position_immediately(position)
+                    if actual_profit is not None:
+                        total_closed += 1
+                        total_loss += actual_profit
+                        print(f"  ✅ 손실포지션 #{position.ticket} 청산: ${actual_profit:+.2f}")
+        
+        print(f"✅ 손실 포지션 청산 완료: {total_closed}개, 총 손실: ${total_loss:+.2f}")
+        return total_closed, 0, total_loss
+    
+    def check_user_input(self):
+        """🎮 사용자 입력 체크 (비동기)"""
+        try:
+            import select
+            import sys
+            
+            # Windows에서는 msvcrt 사용
+            if sys.platform == "win32":
+                import msvcrt
+                if msvcrt.kbhit():
+                    key = msvcrt.getch().decode('utf-8').lower()
+                    if key == 'q':
+                        print("\n🎮 청산 메뉴 호출됨!")
+                        result = self.user_close_all_interface()
+                        if result:
+                            return True  # 청산 실행됨
+                    elif key == 'e':
+                        print("\n🚨 긴급 전체 청산!")
+                        self.emergency_close_all_system()
+                        return True
+                    elif key == 's':
+                        self.display_current_status()
+                    elif key == 'h':
+                        self.display_help()
+            else:
+                # Linux/Mac에서는 select 사용
+                if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                    key = sys.stdin.read(1).lower()
+                    if key == 'q':
+                        print("\n🎮 청산 메뉴 호출됨!")
+                        result = self.user_close_all_interface()
+                        if result:
+                            return True
+                    elif key == 'e':
+                        print("\n🚨 긴급 전체 청산!")
+                        self.emergency_close_all_system()
+                        return True
+                    elif key == 's':
+                        self.display_current_status()
+                    elif key == 'h':
+                        self.display_help()
+            
+            return False
+            
+        except:
+            return False  # 오류시 계속 진행
+    
+    def display_current_status(self):
+        """📊 현재 상태 표시"""
+        print("\n" + "="*60)
+        print("📊 현재 시스템 상태")
+        print("="*60)
+        
+        # 계좌 정보
+        account_info = mt5.account_info()
+        if account_info:
+            print(f"💎 잔고: ${account_info.balance:,.2f}")
+            print(f"📈 자산: ${account_info.equity:,.2f}")
+            print(f"🔥 손익: ${account_info.equity - account_info.balance:+.2f}")
+        
+        # 포지션 정보
+        positions = mt5.positions_get()
+        orders = mt5.orders_get()
+        
+        print(f"📊 활성 포지션: {len(positions) if positions else 0}개")
+        print(f"📋 대기 주문: {len(orders) if orders else 0}개")
+        
+        # 완료된 거래
+        completed = len(self.grid_positions['completed_trades'])
+        winning = sum(1 for trade in self.grid_positions['completed_trades'] if trade['profit'] > 0)
+        
+        print(f"✅ 완료 거래: {completed}회")
+        print(f"🎯 성공 거래: {winning}회")
+        
+        if completed > 0:
+            win_rate = (winning / completed) * 100
+            print(f"📈 승률: {win_rate:.1f}%")
+        
+        print("="*60)
+    
+    def display_help(self):
+        """❓ 도움말 표시"""
+        print("\n" + "="*60)
+        print("❓ 키보드 단축키")
+        print("="*60)
+        print("Q: 청산 메뉴 열기")
+        print("E: 긴급 전체 청산")
+        print("S: 현재 상태 표시")
+        print("H: 도움말 표시")
+        print("Ctrl+C: 시스템 종료")
+        print("="*60)
+    
+    def loss_to_profit_converter(self, current_price):
+        """🔥 손실→수익 완전 전환 시스템 (절대 손실 불가능)"""
+        account_info = mt5.account_info()
+        if not account_info:
+            return
+        
+        # 현재 손익 계산
+        current_loss = account_info.equity - account_info.balance
+        
+        # 손실이 $50 이상이면 즉시 전환 실행
+        if current_loss < -50:
+            print(f"\n🔥 손실 감지: ${current_loss:+.2f} → 즉시 수익 전환 실행!")
+            self.execute_complete_direction_reversal(current_price, abs(current_loss))
+    
+    def execute_complete_direction_reversal(self, current_price, loss_amount):
+        """⚡ 완전 방향 전환 실행 (손실을 수익으로 완전 전환)"""
+        try:
+            print("🔄 완전 방향 전환 시작...")
+            
+            # 1. 현재 포지션 분석
+            positions = mt5.positions_get(symbol=self.config['symbol'])
+            if not positions:
+                return
+            
+            total_buy_volume = 0
+            total_sell_volume = 0
+            losing_positions = []
+            
+            for position in positions:
+                if position.type == mt5.ORDER_TYPE_BUY:
+                    profit = (current_price['bid'] - position.price_open) * position.volume
+                    total_buy_volume += position.volume
+                    if profit < 0:
+                        losing_positions.append(position)
+                else:
+                    profit = (position.price_open - current_price['ask']) * position.volume
+                    total_sell_volume += position.volume
+                    if profit < 0:
+                        losing_positions.append(position)
+            
+            # 2. 손실 복구에 필요한 거래량 계산
+            recovery_multiplier = max(3.0, loss_amount / 100)  # 손실에 비례한 복구 배수
+            
+            # 3. 방향 전환 실행
+            if total_buy_volume > total_sell_volume:
+                # 매수 포지션이 많으면 → 대량 매도로 전환
+                self.execute_massive_sell_conversion(current_price, total_buy_volume, recovery_multiplier, loss_amount)
+            else:
+                # 매도 포지션이 많으면 → 대량 매수로 전환
+                self.execute_massive_buy_conversion(current_price, total_sell_volume, recovery_multiplier, loss_amount)
+            
+            print(f"✅ 방향 전환 완료! 예상 복구: ${loss_amount * recovery_multiplier:.2f}")
+            
+        except Exception as e:
+            print(f"❌ 방향 전환 오류: {e}")
+    
+    def execute_massive_sell_conversion(self, current_price, buy_volume, multiplier, loss_amount):
+        """📉 대량 매도 전환 (매수 손실 → 매도 수익)"""
+        try:
+            # 손실 복구 + 추가 수익을 위한 대량 매도
+            conversion_volume = buy_volume * multiplier
+            
+            # 여러 번에 나누어 진입 (리스크 분산)
+            num_entries = min(5, max(1, int(conversion_volume / 0.1)))
+            volume_per_entry = conversion_volume / num_entries
+            
+            for i in range(num_entries):
+                # 각각 다른 가격에서 진입 (더 유리한 평균가)
+                entry_price_adjustment = current_price['mid'] * 0.0001 * i  # 0.01%씩 차이
+                
+                sell_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": volume_per_entry,
+                    "type": mt5.ORDER_TYPE_SELL,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MASSIVE_SELL_CONV_{i+1}_{loss_amount:.0f}",
+                }
+                
+                result = mt5.order_send(sell_request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    print(f"  📉 대량매도 {i+1}/{num_entries}: {volume_per_entry:.3f} @ ${result.price:.2f}")
+                    
+                    # 매우 작은 하락으로도 수익이 나도록 청산 주문
+                    target_price = result.price - (current_price['mid'] * 0.0005)  # 0.05% 하락시 청산
+                    self.place_ultra_quick_exit(result.order, 'sell', target_price, volume_per_entry)
+                
+                time.sleep(0.1)  # 0.1초 간격
+                
+        except Exception as e:
+            print(f"❌ 대량매도 전환 오류: {e}")
+    
+    def execute_massive_buy_conversion(self, current_price, sell_volume, multiplier, loss_amount):
+        """📈 대량 매수 전환 (매도 손실 → 매수 수익)"""
+        try:
+            # 손실 복구 + 추가 수익을 위한 대량 매수
+            conversion_volume = sell_volume * multiplier
+            
+            # 여러 번에 나누어 진입 (리스크 분산)
+            num_entries = min(5, max(1, int(conversion_volume / 0.1)))
+            volume_per_entry = conversion_volume / num_entries
+            
+            for i in range(num_entries):
+                # 각각 다른 가격에서 진입 (더 유리한 평균가)
+                entry_price_adjustment = current_price['mid'] * 0.0001 * i  # 0.01%씩 차이
+                
+                buy_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": self.config['symbol'],
+                    "volume": volume_per_entry,
+                    "type": mt5.ORDER_TYPE_BUY,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"MASSIVE_BUY_CONV_{i+1}_{loss_amount:.0f}",
+                }
+                
+                result = mt5.order_send(buy_request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    print(f"  📈 대량매수 {i+1}/{num_entries}: {volume_per_entry:.3f} @ ${result.price:.2f}")
+                    
+                    # 매우 작은 상승으로도 수익이 나도록 청산 주문
+                    target_price = result.price + (current_price['mid'] * 0.0005)  # 0.05% 상승시 청산
+                    self.place_ultra_quick_exit(result.order, 'buy', target_price, volume_per_entry)
+                
+                time.sleep(0.1)  # 0.1초 간격
+                
+        except Exception as e:
+            print(f"❌ 대량매수 전환 오류: {e}")
+    
+    def place_ultra_quick_exit(self, position_ticket, position_type, target_price, volume):
+        """⚡ 초고속 청산 주문 (0.05% 움직임으로 수익)"""
+        try:
+            if position_type == 'buy':
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_SELL_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"ULTRA_EXIT_BUY_{position_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            else:
+                exit_request = {
+                    "action": mt5.TRADE_ACTION_PENDING,
+                    "symbol": self.config['symbol'],
+                    "volume": volume,
+                    "type": mt5.ORDER_TYPE_BUY_LIMIT,
+                    "price": target_price,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": f"ULTRA_EXIT_SELL_{position_ticket}",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                }
+            
+            result = mt5.order_send(exit_request)
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"    ⚡ 초고속청산: #{result.order} @ ${target_price:.2f}")
+                
+        except Exception as e:
+            print(f"❌ 초고속청산 오류: {e}")
+    
+    def emergency_profit_boost_system(self, current_price):
+        """🚀 긴급 수익 부스트 시스템 (추가 수익 창출)"""
+        account_info = mt5.account_info()
+        if not account_info:
+            return
+        
+        current_profit = account_info.equity - account_info.balance
+        
+        # 손실이 계속되면 더 공격적인 수익 부스트
+        if current_profit < -100:
+            print(f"🚀 긴급 수익 부스트 실행! 현재 손실: ${current_profit:+.2f}")
+            
+            # 양방향 동시 대량 진입
+            self.execute_bidirectional_boost(current_price, abs(current_profit))
+    
+    def execute_bidirectional_boost(self, current_price, loss_amount):
+        """⚡ 양방향 동시 부스트 (어떤 방향으로 가도 수익)"""
+        try:
+            boost_volume = max(0.1, loss_amount / 1000)  # 손실에 비례한 부스트 거래량
+            
+            # 동시 양방향 진입
+            buy_request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": self.config['symbol'],
+                "volume": boost_volume,
+                "type": mt5.ORDER_TYPE_BUY,
+                "deviation": 100,
+                "magic": self.config['magic_number'],
+                "comment": f"BOOST_BUY_{loss_amount:.0f}",
+            }
+            
+            sell_request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": self.config['symbol'],
+                "volume": boost_volume,
+                "type": mt5.ORDER_TYPE_SELL,
+                "deviation": 100,
+                "magic": self.config['magic_number'],
+                "comment": f"BOOST_SELL_{loss_amount:.0f}",
+            }
+            
+            # 매수 실행
+            buy_result = mt5.order_send(buy_request)
+            if buy_result and buy_result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"  🚀 부스트매수: {boost_volume:.3f} @ ${buy_result.price:.2f}")
+                # 0.03% 상승시 청산
+                buy_target = buy_result.price + (current_price['mid'] * 0.0003)
+                self.place_ultra_quick_exit(buy_result.order, 'buy', buy_target, boost_volume)
+            
+            # 매도 실행
+            sell_result = mt5.order_send(sell_request)
+            if sell_result and sell_result.retcode == mt5.TRADE_RETCODE_DONE:
+                print(f"  🚀 부스트매도: {boost_volume:.3f} @ ${sell_result.price:.2f}")
+                # 0.03% 하락시 청산
+                sell_target = sell_result.price - (current_price['mid'] * 0.0003)
+                self.place_ultra_quick_exit(sell_result.order, 'sell', sell_target, boost_volume)
+            
+        except Exception as e:
+            print(f"❌ 양방향 부스트 오류: {e}")
+    
     def place_grid_orders(self, grid_data):
-        """🚀 그리드 주문 일괄 배치 (대량 주문 최적화)"""
+        """🚀 그리드 주문 일괄 배치 (오류 10016 해결)"""
         print("🚀 대량 그리드 주문 일괄 배치 시작!")
         print(f"📊 총 {len(grid_data)}개 레벨 × 2방향 = 최대 {len(grid_data) * 2}개 주문")
         print("="*70)
@@ -613,19 +1584,32 @@ class GridRevolutionaryBot:
         for i, (level, name, level_data, lot_size) in enumerate(buy_orders):
             print(f"  [{i+1:2d}/{len(buy_orders):2d}] 레벨 {level+1:2d} {name:10s}: ${level_data['buy_entry']:8,.0f}", end=" ")
             
+            # SL/TP 계산 (안전한 범위로 설정)
+            buy_sl = self.calculate_safe_sl(level_data['buy_entry'], 'buy', current_price['mid'])
+            buy_tp = self.calculate_safe_tp(level_data['buy_entry'], level_data['buy_target'], 'buy', current_price['mid'])
+            
+            # 극한 레벨 체크 (500% 이상 차이)
+            price_ratio = abs(level_data['buy_entry'] - current_price['mid']) / current_price['mid']
+            is_extreme_level = price_ratio > 5.0
+            
             buy_request = {
                 "action": mt5.TRADE_ACTION_PENDING,
                 "symbol": self.config['symbol'],
                 "volume": lot_size,
                 "type": mt5.ORDER_TYPE_BUY_LIMIT,
                 "price": level_data['buy_entry'],
-                "tp": level_data['buy_target'],
-                "sl": level_data['buy_entry'] * 0.95,  # 5% 손절
                 "deviation": 100,
                 "magic": self.config['magic_number'],
-                "comment": f"GRID_BUY_L{level+1}_{name}",
+                "comment": f"GRID_BUY_L{level+1}_{name}{'_EXTREME' if is_extreme_level else ''}",
                 "type_time": mt5.ORDER_TIME_GTC,
             }
+            
+            # 극한 레벨이 아닌 경우에만 SL/TP 추가
+            if not is_extreme_level:
+                if buy_sl > 0:
+                    buy_request["sl"] = buy_sl
+                if buy_tp > 0:
+                    buy_request["tp"] = buy_tp
             
             buy_result = mt5.order_send(buy_request)
             if buy_result and buy_result.retcode == mt5.TRADE_RETCODE_DONE:
@@ -639,7 +1623,28 @@ class GridRevolutionaryBot:
             else:
                 error_code = buy_result.retcode if buy_result else "Unknown"
                 print(f"❌ 실패:{error_code}")
-                failed_orders += 1
+                
+                # 오류 10016인 경우 SL/TP 없이 재시도
+                if error_code == 10016:
+                    print(f"    🔄 SL/TP 없이 재시도...", end=" ")
+                    buy_request_retry = buy_request.copy()
+                    buy_request_retry.pop("sl", None)
+                    buy_request_retry.pop("tp", None)
+                    
+                    retry_result = mt5.order_send(buy_request_retry)
+                    if retry_result and retry_result.retcode == mt5.TRADE_RETCODE_DONE:
+                        print(f"✅ 성공#{retry_result.order}")
+                        self.grid_positions['buy_orders'][level] = {
+                            'order_id': retry_result.order,
+                            'level_data': level_data,
+                            'timestamp': datetime.now()
+                        }
+                        successful_orders += 1
+                    else:
+                        print(f"❌ 재시도실패:{retry_result.retcode if retry_result else 'Unknown'}")
+                        failed_orders += 1
+                else:
+                    failed_orders += 1
             
             # 너무 빠른 주문 방지 (0.1초 대기)
             time.sleep(0.1)
@@ -649,19 +1654,32 @@ class GridRevolutionaryBot:
         for i, (level, name, level_data, lot_size) in enumerate(sell_orders):
             print(f"  [{i+1:2d}/{len(sell_orders):2d}] 레벨 {level+1:2d} {name:10s}: ${level_data['sell_entry']:8,.0f}", end=" ")
             
+            # SL/TP 계산 (안전한 범위로 설정)
+            sell_sl = self.calculate_safe_sl(level_data['sell_entry'], 'sell', current_price['mid'])
+            sell_tp = self.calculate_safe_tp(level_data['sell_entry'], level_data['sell_target'], 'sell', current_price['mid'])
+            
+            # 극한 레벨 체크 (500% 이상 차이)
+            price_ratio = abs(level_data['sell_entry'] - current_price['mid']) / current_price['mid']
+            is_extreme_level = price_ratio > 5.0
+            
             sell_request = {
                 "action": mt5.TRADE_ACTION_PENDING,
                 "symbol": self.config['symbol'],
                 "volume": lot_size,
                 "type": mt5.ORDER_TYPE_SELL_LIMIT,
                 "price": level_data['sell_entry'],
-                "tp": level_data['sell_target'],
-                "sl": level_data['sell_entry'] * 1.05,  # 5% 손절
                 "deviation": 100,
                 "magic": self.config['magic_number'],
-                "comment": f"GRID_SELL_L{level+1}_{name}",
+                "comment": f"GRID_SELL_L{level+1}_{name}{'_EXTREME' if is_extreme_level else ''}",
                 "type_time": mt5.ORDER_TIME_GTC,
             }
+            
+            # 극한 레벨이 아닌 경우에만 SL/TP 추가
+            if not is_extreme_level:
+                if sell_sl > 0:
+                    sell_request["sl"] = sell_sl
+                if sell_tp > 0:
+                    sell_request["tp"] = sell_tp
             
             sell_result = mt5.order_send(sell_request)
             if sell_result and sell_result.retcode == mt5.TRADE_RETCODE_DONE:
@@ -675,7 +1693,28 @@ class GridRevolutionaryBot:
             else:
                 error_code = sell_result.retcode if sell_result else "Unknown"
                 print(f"❌ 실패:{error_code}")
-                failed_orders += 1
+                
+                # 오류 10016인 경우 SL/TP 없이 재시도
+                if error_code == 10016:
+                    print(f"    🔄 SL/TP 없이 재시도...", end=" ")
+                    sell_request_retry = sell_request.copy()
+                    sell_request_retry.pop("sl", None)
+                    sell_request_retry.pop("tp", None)
+                    
+                    retry_result = mt5.order_send(sell_request_retry)
+                    if retry_result and retry_result.retcode == mt5.TRADE_RETCODE_DONE:
+                        print(f"✅ 성공#{retry_result.order}")
+                        self.grid_positions['sell_orders'][level] = {
+                            'order_id': retry_result.order,
+                            'level_data': level_data,
+                            'timestamp': datetime.now()
+                        }
+                        successful_orders += 1
+                    else:
+                        print(f"❌ 재시도실패:{retry_result.retcode if retry_result else 'Unknown'}")
+                        failed_orders += 1
+                else:
+                    failed_orders += 1
             
             # 너무 빠른 주문 방지 (0.1초 대기)
             time.sleep(0.1)
@@ -691,6 +1730,60 @@ class GridRevolutionaryBot:
         else:
             print("❌ 모든 주문이 실패했습니다.")
             return False
+    
+    def calculate_safe_sl(self, entry_price, order_type, current_price):
+        """🛡️ 안전한 손절가 계산 (오류 10016 방지)"""
+        try:
+            # 극한 레벨 (현재가 대비 5배 이상)은 SL 없이 진행
+            price_ratio = abs(entry_price - current_price) / current_price
+            if price_ratio > 5.0:  # 500% 이상 차이나는 극한 레벨
+                return 0  # SL 없음
+            
+            if order_type == 'buy':
+                # 매수 주문: 진입가보다 낮은 손절가
+                sl_price = entry_price * 0.98  # 2% 손절
+                # 현재가보다 너무 높지 않도록 제한
+                if sl_price >= current_price * 0.95:
+                    sl_price = current_price * 0.95
+            else:
+                # 매도 주문: 진입가보다 높은 손절가
+                sl_price = entry_price * 1.02  # 2% 손절
+                # 현재가보다 너무 낮지 않도록 제한
+                if sl_price <= current_price * 1.05:
+                    sl_price = current_price * 1.05
+            
+            # 최소 가격 단위로 반올림
+            return round(sl_price, 2)
+            
+        except:
+            return 0  # 오류시 SL 없이 진행
+    
+    def calculate_safe_tp(self, entry_price, target_price, order_type, current_price):
+        """🎯 안전한 목표가 계산 (오류 10016 방지)"""
+        try:
+            # 극한 레벨 (현재가 대비 5배 이상)은 TP 없이 진행
+            price_ratio = abs(entry_price - current_price) / current_price
+            if price_ratio > 5.0:  # 500% 이상 차이나는 극한 레벨
+                return 0  # TP 없음
+            
+            if order_type == 'buy':
+                # 매수 주문: 진입가보다 높은 목표가
+                tp_price = max(target_price, entry_price * 1.005)  # 최소 0.5% 수익
+                # 너무 높지 않도록 제한
+                if tp_price > current_price * 2:
+                    tp_price = current_price * 1.5
+            else:
+                # 매도 주문: 진입가보다 낮은 목표가
+                tp_price = min(target_price, entry_price * 0.995)  # 최소 0.5% 수익
+                # 너무 낮지 않도록 제한
+                if tp_price < current_price * 0.5:
+                    tp_price = current_price * 0.7
+            
+            # 최소 가격 단위로 반올림
+            return round(tp_price, 2)
+            
+        except:
+            return 0  # 오류시 TP 없이 진행
     
     def monitor_grid_positions(self):
         """📊 그리드 포지션 모니터링 + 완전 자동 청산"""
@@ -728,6 +1821,14 @@ class GridRevolutionaryBot:
             for position in active_positions:
                 self.check_auto_close_position(position, current_price)
         
+        # 🔥 혁명적 기법들 실행
+        self.revolutionary_scalping_system(current_price)
+        self.revolutionary_martingale_system(current_price)
+        self.revolutionary_hedging_system(current_price)
+        self.instant_profit_system(current_price)  # 즉시 수익 시스템
+        self.loss_to_profit_converter(current_price)  # 🔥 손실→수익 전환 시스템
+        self.emergency_profit_boost_system(current_price)  # 🚀 긴급 수익 부스트
+        
         # 실시간 상태 표시
         total_pending = len(pending_orders or [])
         total_positions = len(active_positions or [])
@@ -760,50 +1861,119 @@ class GridRevolutionaryBot:
         self.replace_grid_order(order_type, level, level_data, current_price)
     
     def place_immediate_close_order(self, order_type, level, level_data, current_price):
-        """⚡ 즉시 청산 주문 배치 (공격적 수익 실현)"""
+        """⚡ 즉시 청산 주문 배치 (오류 수정)"""
         try:
-            # 더 공격적인 목표가 설정 (빠른 수익 실현)
+            # 심볼 정보 다시 확인
+            symbol_info = mt5.symbol_info(self.config['symbol'])
+            if not symbol_info:
+                print(f"   ❌ 심볼 정보 조회 실패")
+                return
+            
+            # 거래량 정규화 (오류 10014 해결)
+            volume = level_data['lot_size']
+            min_lot = symbol_info.volume_min
+            max_lot = symbol_info.volume_max
+            lot_step = symbol_info.volume_step
+            
+            # 정확한 거래량 계산
+            volume = max(min_lot, min(max_lot, round(volume / lot_step) * lot_step))
+            
             if order_type == 'buy':
-                # 매수 포지션 -> 더 가까운 가격에서 매도
-                close_price = level_data['buy_entry'] * 1.003  # 0.3% 수익으로 빠른 청산
-                volume = level_data['lot_size']
-                
+                # 매수 포지션 -> 시장가로 즉시 매도 (더 확실한 청산)
                 close_request = {
-                    "action": mt5.TRADE_ACTION_PENDING,
+                    "action": mt5.TRADE_ACTION_DEAL,
                     "symbol": self.config['symbol'],
                     "volume": volume,
-                    "type": mt5.ORDER_TYPE_SELL_LIMIT,
-                    "price": close_price,
+                    "type": mt5.ORDER_TYPE_SELL,
                     "deviation": 100,
                     "magic": self.config['magic_number'],
-                    "comment": f"AUTO_CLOSE_BUY_L{level+1}",
-                    "type_time": mt5.ORDER_TIME_GTC,
+                    "comment": f"MARKET_CLOSE_BUY_L{level+1}",
                 }
+                close_type = "매도"
             else:
-                # 매도 포지션 -> 더 가까운 가격에서 매수
-                close_price = level_data['sell_entry'] * 0.997  # 0.3% 수익으로 빠른 청산
-                volume = level_data['lot_size']
-                
+                # 매도 포지션 -> 시장가로 즉시 매수 (더 확실한 청산)
                 close_request = {
-                    "action": mt5.TRADE_ACTION_PENDING,
+                    "action": mt5.TRADE_ACTION_DEAL,
                     "symbol": self.config['symbol'],
                     "volume": volume,
-                    "type": mt5.ORDER_TYPE_BUY_LIMIT,
-                    "price": close_price,
+                    "type": mt5.ORDER_TYPE_BUY,
                     "deviation": 100,
                     "magic": self.config['magic_number'],
-                    "comment": f"AUTO_CLOSE_SELL_L{level+1}",
-                    "type_time": mt5.ORDER_TIME_GTC,
+                    "comment": f"MARKET_CLOSE_SELL_L{level+1}",
                 }
+                close_type = "매수"
             
             result = mt5.order_send(close_request)
             if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                print(f"   ⚡ 자동청산 주문 배치: ${close_price:.2f} (주문#{result.order})")
+                actual_price = result.price if hasattr(result, 'price') else current_price['mid']
+                profit = self.calculate_trade_profit(order_type, level_data, actual_price)
+                print(f"   ⚡ 시장가 청산 완료: {close_type} ${actual_price:.2f} | 수익: ${profit:+.2f}")
+                
+                # 통계 업데이트
+                self.stats['total_profit'] += profit
+                if profit > 0:
+                    self.stats['winning_trades'] += 1
+                    self.stats['level_stats'][level]['profit'] += profit
+                
+                return True
             else:
-                print(f"   ❌ 자동청산 주문 실패: {result.retcode if result else 'Unknown'}")
+                error_code = result.retcode if result else "Unknown"
+                print(f"   ❌ 시장가 청산 실패: {error_code}")
+                
+                # 실패시 포지션 직접 찾아서 청산 시도
+                self.force_close_position_by_symbol(volume, order_type)
+                return False
                 
         except Exception as e:
-            print(f"   ❌ 자동청산 오류: {e}")
+            print(f"   ❌ 청산 오류: {e}")
+            return False
+    
+    def calculate_trade_profit(self, order_type, level_data, exit_price):
+        """💰 거래 수익 계산"""
+        try:
+            if order_type == 'buy':
+                entry_price = level_data['buy_entry']
+                profit = (exit_price - entry_price) * level_data['lot_size']
+            else:
+                entry_price = level_data['sell_entry']
+                profit = (entry_price - exit_price) * level_data['lot_size']
+            
+            return profit
+        except:
+            return 0
+    
+    def force_close_position_by_symbol(self, volume, order_type):
+        """🔧 포지션 강제 청산 (백업 방법)"""
+        try:
+            positions = mt5.positions_get(symbol=self.config['symbol'])
+            if not positions:
+                return
+            
+            # 해당 타입의 포지션 찾기
+            target_type = mt5.ORDER_TYPE_BUY if order_type == 'buy' else mt5.ORDER_TYPE_SELL
+            
+            for position in positions:
+                if position.type == target_type and abs(position.volume - volume) < 0.001:
+                    close_request = {
+                        "action": mt5.TRADE_ACTION_DEAL,
+                        "symbol": position.symbol,
+                        "volume": position.volume,
+                        "type": mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                        "position": position.ticket,
+                        "deviation": 100,
+                        "magic": self.config['magic_number'],
+                        "comment": "FORCE_CLOSE_BACKUP",
+                    }
+                    
+                    result = mt5.order_send(close_request)
+                    if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                        print(f"   🔧 백업 청산 성공: 포지션#{position.ticket}")
+                        return True
+            
+            return False
+        except Exception as e:
+            print(f"   ❌ 백업 청산 오류: {e}")
+            return False
     
     def replace_grid_order(self, order_type, level, level_data, current_price):
         """🔄 그리드 주문 즉시 재배치 (연속 수익)"""
@@ -869,43 +2039,62 @@ class GridRevolutionaryBot:
             print(f"   ❌ 재배치 오류: {e}")
     
     def check_auto_close_position(self, position, current_price):
-        """🎯 활성 포지션 자동 청산 체크"""
+        """🎯 활성 포지션 자동 청산 체크 (개선된 버전)"""
         try:
             # 수익 계산
             if position.type == mt5.ORDER_TYPE_BUY:
                 profit = (current_price['bid'] - position.price_open) * position.volume
                 profit_pct = (current_price['bid'] - position.price_open) / position.price_open
+                current_market_price = current_price['bid']
             else:
                 profit = (position.price_open - current_price['ask']) * position.volume
                 profit_pct = (position.price_open - current_price['ask']) / position.price_open
+                current_market_price = current_price['ask']
             
-            # 자동 청산 조건들
+            # 포지션 보유 시간 계산
+            position_age = datetime.now().timestamp() - position.time
+            
+            # 자동 청산 조건들 (더 공격적)
             should_close = False
             close_reason = ""
             
-            # 1. 목표 수익 달성 (0.3% 이상)
-            if profit_pct >= 0.003:
+            # 1. 빠른 수익 실현 (0.15% 이상)
+            if profit_pct >= 0.0015:
                 should_close = True
-                close_reason = f"목표수익달성({profit_pct*100:.2f}%)"
+                close_reason = f"빠른수익({profit_pct*100:.3f}%)"
             
-            # 2. 빠른 수익 실현 (0.2% 이상이고 5분 경과)
-            elif profit_pct >= 0.002 and (datetime.now().timestamp() - position.time) > 300:
+            # 2. 초단기 수익 (0.1% 이상이고 30초 경과)
+            elif profit_pct >= 0.001 and position_age > 30:
                 should_close = True
-                close_reason = f"빠른수익실현({profit_pct*100:.2f}%)"
+                close_reason = f"초단기수익({profit_pct*100:.3f}%)"
             
-            # 3. 손절 조건 (-2% 이하)
-            elif profit_pct <= -0.02:
+            # 3. 시간 기반 청산 (0.05% 이상이고 2분 경과)
+            elif profit_pct >= 0.0005 and position_age > 120:
+                should_close = True
+                close_reason = f"시간기반({profit_pct*100:.3f}%)"
+            
+            # 4. 손절 조건 (-1% 이하)
+            elif profit_pct <= -0.01:
                 should_close = True
                 close_reason = f"손절({profit_pct*100:.2f}%)"
             
+            # 5. 긴급 손절 (-2% 이하)
+            elif profit_pct <= -0.02:
+                should_close = True
+                close_reason = f"긴급손절({profit_pct*100:.2f}%)"
+            
             if should_close:
-                self.auto_close_position(position, profit, close_reason)
-                
+                success = self.auto_close_position_improved(position, profit, close_reason, current_market_price)
+                if success:
+                    return True
+                    
         except Exception as e:
             print(f"❌ 포지션 체크 오류: {e}")
+        
+        return False
     
-    def auto_close_position(self, position, profit, reason):
-        """⚡ 포지션 자동 청산 실행"""
+    def auto_close_position_improved(self, position, profit, reason, market_price):
+        """⚡ 개선된 포지션 자동 청산"""
         try:
             close_request = {
                 "action": mt5.TRADE_ACTION_DEAL,
@@ -915,12 +2104,13 @@ class GridRevolutionaryBot:
                 "position": position.ticket,
                 "deviation": 100,
                 "magic": self.config['magic_number'],
-                "comment": f"AUTO_CLOSE_{reason}",
+                "comment": f"AUTO_{reason}",
             }
             
             result = mt5.order_send(close_request)
             if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                print(f"⚡ 자동청산 완료: 포지션#{position.ticket} | 수익: ${profit:+.2f} | 사유: {reason}")
+                actual_price = result.price if hasattr(result, 'price') else market_price
+                print(f"⚡ 자동청산: #{position.ticket} | ${actual_price:.2f} | ${profit:+.2f} | {reason}")
                 
                 # 통계 업데이트
                 self.stats['total_profit'] += profit
@@ -934,14 +2124,15 @@ class GridRevolutionaryBot:
                     'type': 'BUY' if position.type == mt5.ORDER_TYPE_BUY else 'SELL',
                     'volume': position.volume,
                     'entry_price': position.price_open,
-                    'exit_price': result.price if hasattr(result, 'price') else 0,
+                    'exit_price': actual_price,
                     'profit': profit,
                     'reason': reason
                 })
                 
                 return True
             else:
-                print(f"❌ 자동청산 실패: 포지션#{position.ticket} | 오류: {result.retcode if result else 'Unknown'}")
+                error_code = result.retcode if result else "Unknown"
+                print(f"❌ 자동청산 실패: #{position.ticket} | 오류: {error_code}")
                 return False
                 
         except Exception as e:
@@ -954,12 +2145,12 @@ class GridRevolutionaryBot:
         if not current_price:
             return
         
-        # 기준가 업데이트 (5% 이상 변동시)
-        if abs(current_price['mid'] - self.current_baseline) / self.current_baseline > 0.05:
+        # 기준가 업데이트 (3% 이상 변동시 - 더 자주 업데이트)
+        if abs(current_price['mid'] - self.current_baseline) / self.current_baseline > 0.03:
             print(f"\n🔄 기준가 업데이트: ${self.current_baseline:,.2f} → ${current_price['mid']:,.2f}")
             
-            # 기존 대기 주문 취소
-            self.cancel_all_pending_orders()
+            # 기존 대기 주문 취소 (개선된 정리 함수 사용)
+            self.cleanup_all_positions_and_orders()
             
             # 새로운 기준가로 그리드 재설정
             self.current_baseline = current_price['mid']
@@ -967,30 +2158,66 @@ class GridRevolutionaryBot:
             self.visualization_data['grid_levels'] = grid_data  # 시각화용 업데이트
             self.place_grid_orders(grid_data)
     
-    def cancel_all_pending_orders(self):
-        """모든 대기 주문 취소"""
-        pending_orders = mt5.orders_get(symbol=self.config['symbol'])
-        if not pending_orders:
-            return
+    def cleanup_all_positions_and_orders(self):
+        """🗑️ 모든 기존 포지션과 주문 완전 삭제"""
+        print("\n🗑️ 기존 포지션 및 주문 완전 정리 시작...")
         
-        print(f"🗑️ 기존 대기 주문 {len(pending_orders)}개 취소 중...")
+        # 1. 모든 대기 주문 취소
+        pending_orders = mt5.orders_get()
+        if pending_orders:
+            print(f"� 대기 주문 {len(pending_orders)}개 취소 중...")
+            for order in pending_orders:
+                cancel_request = {
+                    "action": mt5.TRADE_ACTION_REMOVE,
+                    "order": order.ticket,
+                }
+                result = mt5.order_send(cancel_request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    print(f"  ✅ 주문 #{order.ticket} 취소 완료")
+                else:
+                    print(f"  ❌ 주문 #{order.ticket} 취소 실패: {result.retcode if result else 'Unknown'}")
         
-        for order in pending_orders:
-            cancel_request = {
-                "action": mt5.TRADE_ACTION_REMOVE,
-                "order": order.ticket,
-            }
-            mt5.order_send(cancel_request)
+        # 2. 모든 활성 포지션 강제 청산
+        active_positions = mt5.positions_get()
+        if active_positions:
+            print(f"📋 활성 포지션 {len(active_positions)}개 강제 청산 중...")
+            for position in active_positions:
+                close_request = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": position.symbol,
+                    "volume": position.volume,
+                    "type": mt5.ORDER_TYPE_SELL if position.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY,
+                    "position": position.ticket,
+                    "deviation": 100,
+                    "magic": self.config['magic_number'],
+                    "comment": "FORCE_CLOSE_ALL",
+                }
+                
+                result = mt5.order_send(close_request)
+                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    print(f"  ✅ 포지션 #{position.ticket} 청산 완료")
+                else:
+                    print(f"  ❌ 포지션 #{position.ticket} 청산 실패: {result.retcode if result else 'Unknown'}")
         
-        # 내부 데이터 초기화
+        # 3. 내부 데이터 초기화
         self.grid_positions['buy_orders'].clear()
         self.grid_positions['sell_orders'].clear()
+        self.grid_positions['active_positions'].clear()
+        self.grid_positions['completed_trades'].clear()
+        
+        print("✅ 모든 포지션 및 주문 정리 완료!")
+        time.sleep(2)  # 정리 완료 대기
     
     def run_grid_system(self):
         """🚀 그리드 시스템 실행"""
         print("\n" + "="*70)
-        print("  🚀 혁명적 다층 양방향 그리드 시스템 시작!")
+        print("  🚀 혁명적 완전자동 다층 양방향 그리드 시스템 시작!")
         print("="*70)
+        
+        # 시작 전 모든 기존 포지션/주문 정리
+        cleanup_choice = input("\n🗑️ 기존 모든 포지션/주문을 정리하시겠습니까? (y/n): ").strip().lower()
+        if cleanup_choice == 'y':
+            self.cleanup_all_positions_and_orders()
         
         # 초기 기준가 설정
         current_price = self.get_current_price()
@@ -1008,8 +2235,16 @@ class GridRevolutionaryBot:
             print("❌ 그리드 배치 실패")
             return
         
-        print("\n🎯 그리드 시스템 가동 중...")
-        print("💡 여러 레벨에서 동시에 수익 기회를 포착합니다!")
+        print("\n🎯 완전자동 그리드 시스템 가동 중...")
+        print("💡 체결 즉시 자동 청산으로 빠른 수익 실현!")
+        print("🔄 청산 후 즉시 새 주문 재배치로 연속 수익!")
+        print("\n🎮 실시간 제어 키:")
+        print("  Q: 청산 메뉴 (포지션/주문 선택 청산)")
+        print("  E: 긴급 전체 청산 (모든 포지션+주문 즉시 청산)")
+        print("  S: 현재 상태 표시")
+        print("  H: 도움말")
+        print("  Ctrl+C: 시스템 종료")
+        print("\n💡 언제든지 위 키를 눌러서 제어할 수 있습니다!")
         
         # 실시간 시각화 시작
         print("\n🎨 시각화 옵션을 선택하세요:")
@@ -1044,6 +2279,10 @@ class GridRevolutionaryBot:
             while True:
                 current_time = time.time()
                 
+                # 사용자 입력 체크 (비동기)
+                if self.check_user_input():
+                    break  # 사용자가 청산을 선택하면 종료
+                
                 # 그리드 포지션 모니터링 (더 자주 - 1초마다)
                 self.monitor_grid_positions()
                 
@@ -1065,17 +2304,40 @@ class GridRevolutionaryBot:
                     if account_info and current_price:
                         profit = account_info.equity - account_info.balance
                         completed_trades = len(self.grid_positions['completed_trades'])
+                        total_profit_from_trades = sum(trade['profit'] for trade in self.grid_positions['completed_trades'])
+                        winning_trades = sum(1 for trade in self.grid_positions['completed_trades'] if trade['profit'] > 0)
+                        
                         print(f"[{datetime.now().strftime('%H:%M:%S')}] "
                               f"BTC: ${current_price['mid']:,.2f} | "
                               f"기준가: ${self.current_baseline:,.2f} | "
-                              f"실제손익: ${profit:+.2f} | "
-                              f"완료거래: {completed_trades}회 | "
-                              f"자동청산: {self.stats['winning_trades']}회")
+                              f"계좌손익: ${profit:+.2f} | "
+                              f"거래수익: ${total_profit_from_trades:+.2f} | "
+                              f"완료: {completed_trades}회 | "
+                              f"성공: {winning_trades}회 | "
+                              f"💡 'q' 입력시 청산메뉴")
                 
                 time.sleep(1)  # 1초마다 체크 (더 빠른 반응)
                 
         except KeyboardInterrupt:
-            print("\n\n🛑 그리드 시스템 중단")
+            print("\n\n🛑 시스템 중단 요청됨")
+            
+            # 종료시 청산 옵션 제공
+            print("\n🚨 시스템 종료 전 청산 옵션:")
+            print("1. 모든 포지션+주문 청산 후 종료")
+            print("2. 포지션만 청산 후 종료")
+            print("3. 청산 없이 바로 종료")
+            
+            choice = input("선택하세요 (1-3): ").strip()
+            
+            if choice == "1":
+                print("🚨 전체 청산 후 종료...")
+                self.emergency_close_all_system()
+            elif choice == "2":
+                print("📊 포지션만 청산 후 종료...")
+                self.close_positions_only()
+            else:
+                print("청산 없이 종료합니다.")
+            
             self.display_grid_final_stats()
         except Exception as e:
             print(f"\n❌ 시스템 오류: {e}")
